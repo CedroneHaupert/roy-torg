@@ -116,7 +116,7 @@ app.post('/api/upload', upload.array('photos', 30), (req, res) => {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'Файлы не найдены' });
         }
-        const baseUrl = process.env.NODE_ENV === 'production' ? 'http://37.252.19.74:5001' : `http://localhost:${process.env.PORT || 5001}`;
+        const baseUrl = process.env.NODE_ENV === 'production' ? 'http://81.26.184.131:80' : `http://localhost:${process.env.PORT || 5001}`;
         const fileUrls = req.files.map(file => `${baseUrl}/uploads/${file.filename}`);
         res.json({ success: true, urls: fileUrls });
     } catch (error) {

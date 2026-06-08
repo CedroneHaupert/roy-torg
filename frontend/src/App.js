@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
-const socket = io('http://37.252.19.74:5001');
+const socket = io('http://81.26.184.131:80');
 
 // === КОМПОНЕНТ УВЕДОМЛЕНИЙ (TOASTS) ===
 const ToastContainer = ({ toasts, removeToast }) => (
@@ -51,7 +51,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
     
     setIsLoading(true);
     try {
-        const response = await fetch('http://37.252.19.74:5001/api/auth/send-code', {
+        const response = await fetch('http://81.26.184.131:80/api/auth/send-code', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone })
         });
         const data = await response.json();
@@ -72,7 +72,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-        const response = await fetch('http://37.252.19.74:5001/api/auth/verify', {
+        const response = await fetch('http://81.26.184.131:80/api/auth/verify', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code })
         });
         const data = await response.json();
@@ -1189,7 +1189,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
     setIsProcessingTopUp(true);
     try {
         await new Promise(resolve => setTimeout(resolve, 1500));
-        const response = await fetch('http://37.252.19.74:5001/api/topup', {
+        const response = await fetch('http://81.26.184.131:80/api/topup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUser.id, amount: 5000 })
@@ -1420,7 +1420,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
-            fetch('http://37.252.19.74:5001/api/admin/stats')
+            fetch('http://81.26.184.131:80/api/admin/stats')
                 .then(res => res.json())
                 .then(data => setStats(data))
                 .catch(console.error);
@@ -1436,7 +1436,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     const handleCopyLot = async (id) => {
         try {
-            const res = await fetch(`http://37.252.19.74:5001/api/lots/${id}/copy`, { method: 'POST' });
+            const res = await fetch(`http://81.26.184.131:80/api/lots/${id}/copy`, { method: 'POST' });
             if (res.ok) {
                 addToast('Успех', 'Лот успешно скопирован и перенесен в запланированные', 'success');
             }
@@ -1458,7 +1458,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                     formDataObj.append('photos', file);
                 });
 
-                const uploadRes = await fetch('http://37.252.19.74:5001/api/upload', {
+                const uploadRes = await fetch('http://81.26.184.131:80/api/upload', {
                     method: 'POST',
                     body: formDataObj
                 });
@@ -1478,7 +1478,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 images: uploadedUrls
             };
 
-            const response = await fetch('http://37.252.19.74:5001/api/lots', {
+            const response = await fetch('http://81.26.184.131:80/api/lots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(lotDataToSubmit)
