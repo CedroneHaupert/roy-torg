@@ -7,11 +7,6 @@ const cors = require('cors');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const multer = require('multer');
 const path = require('path');
-app.use(express.static(path.join(__dirname, '../frontend/build')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
-});
-
 const fs = require('fs');
 
 const app = express();
@@ -22,13 +17,13 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 // === 0. НАСТРОЙКА ХРАНИЛИЩА ФАЙЛОВ (MULTER) ===
-if (!fs.existsSync('./uploads')) {
-    fs.mkdirSync('./uploads');
+if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
+    fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
 }
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, './uploads/');
+        cb(null, path.join(__dirname, 'uploads'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -51,7 +46,7 @@ if (process.env.NODE_ENV === 'production') {
 } else {
     sequelize = new Sequelize({
         dialect: 'sqlite',
-        storage: './roytorg.sqlite', 
+        storage: path.join(__dirname, 'roytorg.sqlite'), 
         logging: false 
     });
     console.log('🔗 Режим: DEVELOPMENT (SQLite)');
@@ -75,7 +70,7 @@ const Lot = sequelize.define('Lot', {
     currentPrice: { type: DataTypes.INTEGER, allowNull: false },
     minStep: { type: DataTypes.INTEGER, defaultValue: 50000 },
     reservePrice: { type: DataTypes.INTEGER, allowNull: true },     // Минимально желаемая цена контрагента
-    estimatedValue: { type: DataTypes.INTEGER, allowNull: true },   // Независимая рыночная оценка платформы (ярко горит на фронте)
+    estimatedValue: { type: DataTypes.INTEGER, allowNull: true },   // Независимая рыночная оценка платформы
     startTime: { type: DataTypes.DATE, allowNull: true },
     endTime: { type: DataTypes.DATE, allowNull: false },
     bidsCount: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -96,14 +91,16 @@ const AutoBid = sequelize.define('AutoBid', {
     maxAmount: { type: DataTypes.INTEGER, allowNull: false }
 });
 
-// Связи
+// Связи таблиц
 User.hasMany(Bid);
 Bid.belongsTo(User);
+
 Lot.hasMany(Bid);
 Bid.belongsTo(Lot);
 
 User.hasMany(AutoBid);
 AutoBid.belongsTo(User);
+
 Lot.hasMany(AutoBid);
 AutoBid.belongsTo(Lot);
 
@@ -111,15 +108,18 @@ AutoBid.belongsTo(Lot);
 const smsCodes = new Map();
 
 // === 3. REST API МАРШРУТЫ ===
+
+// Загрузка фотографий
 app.post('/api/upload', upload.array('photos', 30), (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'Файлы не найдены' });
         }
-        const baseUrl = process.env.NODE_ENV === 'production' ? 'http://81.26.184.131:80' : `http://localhost:${process.env.PORT || 5001}`;
+        const baseUrl = process.env.NODE_ENV === 'production' ? 'http://81.26.184.131:80' : `http://localhost:${process.env.PORT || 80}`;
         const fileUrls = req.files.map(file => `${baseUrl}/uploads/${file.filename}`);
         res.json({ success: true, urls: fileUrls });
     } catch (error) {
+        console.error('Ошибка upload:', error);
         res.status(500).json({ error: 'Ошибка при сохранении файлов' });
     }
 });
@@ -127,7 +127,9 @@ app.post('/api/upload', upload.array('photos', 30), (req, res) => {
 // ОТПРАВКА СМС
 app.post('/api/auth/send-code', async (req, res) => {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Номер телефона обязателен' });
+    if (!phone) {
+        return res.status(400).json({ error: 'Номер телефона обязателен' });
+    }
 
     const cleanPhone = phone.replace(/\D/g, '');
     const code = Math.floor(1000 + Math.random() * 9000).toString();
@@ -148,21 +150,25 @@ app.post('/api/auth/send-code', async (req, res) => {
             res.json({ success: true, message: 'СМС отправлено' });
         } else {
             console.error('❌ Ошибка от sms.ru:', data);
-            // Возвращаем true, чтобы даже при проблемах с шлюзом до прохождения операторов, Лэндинг переключался на шаг ввода кода 0000
+            // Возвращаем true, чтобы даже при проблемах с шлюзом Лэндинг переключался на шаг ввода кода 0000
             res.json({ success: true, message: 'Включен режим тестирования (введите 0000)' });
         }
     } catch (error) {
         // Защита: если нет интернета или шлюз лежит, даем зайти по 0000
+        console.error('Ошибка шлюза:', error.message);
         res.json({ success: true, message: 'Локальный режим (введите 0000)' });
     }
 });
 
+// ПРОВЕРКА КОДА И АВТОРИЗАЦИЯ
 app.post('/api/auth/verify', async (req, res) => {
     const { phone, code } = req.body;
-    if (!phone || !code) return res.status(400).json({ error: 'Телефон и код обязательны' });
+    if (!phone || !code) {
+        return res.status(400).json({ error: 'Телефон и код обязательны' });
+    }
 
     const savedCode = smsCodes.get(phone);
-    // Проверка мастер-кода 0000 для обхода операторской блокировки Оксаны
+    // Проверка мастер-кода 0000 для обхода операторской блокировки
     if (savedCode !== code && code !== '0000') {
         return res.status(400).json({ error: 'Неверный код подтверждения' });
     }
@@ -173,33 +179,47 @@ app.post('/api/auth/verify', async (req, res) => {
             defaults: { depositBalance: 0, isVerified: false }
         });
         smsCodes.delete(phone);
-        res.json({ success: true, message: created ? 'Пользователь зарегистрирован' : 'Успешный вход', user });
+        res.json({ 
+            success: true, 
+            message: created ? 'Пользователь зарегистрирован' : 'Успешный вход', 
+            user 
+        });
     } catch (error) {
+        console.error('Ошибка авторизации:', error);
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
     }
 });
 
+// ПОПОЛНЕНИЕ ДЕПОЗИТА
 app.post('/api/topup', async (req, res) => {
     try {
         const { userId, amount } = req.body;
         const user = await User.findByPk(userId);
-        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
 
         user.depositBalance += Number(amount);
-        if (user.depositBalance >= 5000) user.isVerified = true;
+        if (user.depositBalance >= 5000) {
+            user.isVerified = true;
+        }
         await user.save();
+        
         res.json({ success: true, user });
     } catch (error) {
+        console.error('Ошибка пополнения:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
+// СОЗДАНИЕ ЛОТА (АДМИН)
 app.post('/api/lots', async (req, res) => {
     try {
         const { 
             auctionId, lotNumber, title, description, year, mileage, 
-            currentPrice, minStep, reservePrice, estimatedValue, hasNds, duration, durationType, startTime,
-            images, mechanicRating, videoUrl
+            currentPrice, minStep, reservePrice, estimatedValue, hasNds, 
+            duration, durationType, startTime, images, mechanicRating, videoUrl 
         } = req.body;
         
         const start = startTime ? new Date(startTime).getTime() : Date.now();
@@ -209,10 +229,14 @@ app.post('/api/lots', async (req, res) => {
         const newLot = await Lot.create({
             auctionId: auctionId || 'A-2026-05',
             lotNumber: lotNumber || `L-${Math.floor(10000 + Math.random() * 90000)}`,
-            title, description, year: year ? Number(year) : null, mileage,
-            currentPrice: Number(currentPrice), minStep: Number(minStep) || 50000,
+            title, 
+            description, 
+            year: year ? Number(year) : null, 
+            mileage,
+            currentPrice: Number(currentPrice), 
+            minStep: Number(minStep) || 50000,
             reservePrice: reservePrice ? Number(reservePrice) : null,
-            estimatedValue: estimatedValue ? Number(estimatedValue) : null, // Записываем рыночную оценку площадки
+            estimatedValue: estimatedValue ? Number(estimatedValue) : null,
             startTime: startTime ? new Date(startTime) : null,
             endTime: new Date(start + durationMs),
             hasNds,
@@ -225,12 +249,15 @@ app.post('/api/lots', async (req, res) => {
 
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
+        
         res.json({ success: true, lot: newLot });
     } catch (error) {
+        console.error('Ошибка создания лота:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
+// ИСТОРИЯ СТАВОК ЮЗЕРА
 app.get('/api/user/:userId/bids', async (req, res) => {
     try {
         const bids = await Bid.findAll({
@@ -240,15 +267,19 @@ app.get('/api/user/:userId/bids', async (req, res) => {
         
         const lotsMap = new Map();
         bids.forEach(b => {
-            if(b.Lot && !lotsMap.has(b.Lot.id)) lotsMap.set(b.Lot.id, b.Lot);
+            if(b.Lot && !lotsMap.has(b.Lot.id)) {
+                lotsMap.set(b.Lot.id, b.Lot);
+            }
         });
 
         res.json({ success: true, lots: Array.from(lotsMap.values()) });
     } catch (error) {
+        console.error('Ошибка истории:', error);
         res.status(500).json({ error: 'Ошибка сервера при получении истории' });
     }
 });
 
+// СТАТИСТИКА ДЛЯ АДМИНА
 app.get('/api/admin/stats', async (req, res) => {
     try {
         const totalUsers = await User.count();
@@ -268,14 +299,18 @@ app.get('/api/admin/stats', async (req, res) => {
             frequentBidders: frequentBidders.length
         });
     } catch (error) {
+        console.error('Ошибка статистики:', error);
         res.status(500).json({ error: 'Ошибка statistics' });
     }
 });
 
+// ДУБЛИРОВАНИЕ ЛОТА
 app.post('/api/lots/:id/copy', async (req, res) => {
     try {
         const oldLot = await Lot.findByPk(req.params.id);
-        if (!oldLot) return res.status(404).json({ error: 'Лот не найден' });
+        if (!oldLot) {
+            return res.status(404).json({ error: 'Лот не найден' });
+        }
 
         const newLot = await Lot.create({
             auctionId: oldLot.auctionId,
@@ -287,7 +322,7 @@ app.post('/api/lots/:id/copy', async (req, res) => {
             currentPrice: oldLot.currentPrice,
             minStep: oldLot.minStep,
             reservePrice: oldLot.reservePrice,
-            estimatedValue: oldLot.estimatedValue, // Переносим рыночную оценку при дублировании лота
+            estimatedValue: oldLot.estimatedValue,
             endTime: new Date(Date.now() + 86400000), 
             hasNds: oldLot.hasNds,
             imageUrl: oldLot.imageUrl,
@@ -299,8 +334,10 @@ app.post('/api/lots/:id/copy', async (req, res) => {
         
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
+        
         res.json({ success: true, lot: newLot });
     } catch (error) {
+        console.error('Ошибка копирования:', error);
         res.status(500).json({ error: 'Ошибка при копировании' });
     }
 });
@@ -308,13 +345,20 @@ app.post('/api/lots/:id/copy', async (req, res) => {
 // === 4. ЛОГИКА АВТОБРОКЕРА ===
 async function triggerAutoBids(lotId) {
     const lot = await Lot.findByPk(lotId);
-    if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return;
+    
+    if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) {
+        return;
+    }
 
-    const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
+    const latestBid = await Bid.findOne({ 
+        where: { LotId: lot.id }, 
+        order: [['createdAt', 'DESC']] 
+    });
     const prevLeaderId = latestBid ? latestBid.UserId : null;
 
     const autoBids = await AutoBid.findAll({ where: { LotId: lot.id } });
     const competingAutoBids = autoBids.filter(ab => ab.UserId !== prevLeaderId);
+    
     if (competingAutoBids.length === 0) return; 
 
     competingAutoBids.sort((a, b) => b.maxAmount - a.maxAmount);
@@ -333,20 +377,30 @@ async function triggerAutoBids(lotId) {
         await lot.save();
 
         const user = await User.findByPk(bestAutoBid.UserId);
-        await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
+        await Bid.create({ 
+            amount: requiredBid, 
+            LotId: lot.id, 
+            UserId: user.id, 
+            userPhone: user.phone 
+        });
 
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
 
         if (prevLeaderId && prevLeaderId !== user.id) {
-            io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: requiredBid });
+            io.emit('outbid', { 
+                previousUserId: prevLeaderId, 
+                lotId: lot.id, 
+                title: lot.title, 
+                newPrice: requiredBid 
+            });
         }
 
         await triggerAutoBids(lot.id);
     }
 }
 
-// === 5. ЛОГИКА СОКЕТОВ ===
+// === 5. ЛОГИКА СОКЕТОВ (REAL-TIME) ===
 io.on('connection', async (socket) => {
     console.log(`⚡ Подключился пользователь: ${socket.id}`);
 
@@ -361,11 +415,17 @@ io.on('connection', async (socket) => {
         const { lotId, maxAmount, userId } = data;
         try {
             const user = await User.findByPk(userId);
-            if (!user || (!user.isVerified && user.depositBalance < 5000)) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            if (!user || (!user.isVerified && user.depositBalance < 5000)) {
+                return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            }
 
             const lot = await Lot.findByPk(lotId);
-            if (lot.status === 'completed') return socket.emit('bidError', { message: 'Торги завершены!' });
-            if (maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Лимит робота должен быть выше текущей цены + шаг!' });
+            if (lot.status === 'completed') {
+                return socket.emit('bidError', { message: 'Торги завершены!' });
+            }
+            if (maxAmount < lot.currentPrice + lot.minStep) {
+                return socket.emit('bidError', { message: 'Лимит робота должен быть выше текущей цены + шаг!' });
+            }
 
             let autoBid = await AutoBid.findOne({ where: { LotId: lotId, UserId: userId } });
             if (autoBid) {
@@ -379,14 +439,19 @@ io.on('connection', async (socket) => {
             await triggerAutoBids(lotId);
 
         } catch (error) {
+            console.error(error);
             socket.emit('bidError', { message: 'Ошибка установки автоброкера' });
         }
     });
 
     socket.on('cancelAutoBroker', async (data) => {
         const { lotId, userId } = data;
-        await AutoBid.destroy({ where: { LotId: lotId, UserId: userId } });
-        socket.emit('bidSuccess', { message: 'Автоброкер успешно отключен' });
+        try {
+            await AutoBid.destroy({ where: { LotId: lotId, UserId: userId } });
+            socket.emit('bidSuccess', { message: 'Автоброкер успешно отключен' });
+        } catch (error) {
+            console.error(error);
+        }
     });
 
     socket.on('placeBid', async (data) => {
@@ -394,8 +459,12 @@ io.on('connection', async (socket) => {
         
         try {
             const user = await User.findByPk(userId);
-            if (!user) return socket.emit('bidError', { message: 'Пожалуйста, авторизуйтесь!' });
-            if (!user.isVerified && user.depositBalance < 5000) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            if (!user) {
+                return socket.emit('bidError', { message: 'Пожалуйста, авторизуйтесь!' });
+            }
+            if (!user.isVerified && user.depositBalance < 5000) {
+                return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            }
 
             const lot = await Lot.findByPk(lotId);
             if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) {
@@ -407,12 +476,22 @@ io.on('connection', async (socket) => {
                 lot.bidsCount += 1;
 
                 const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
-                if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
+                if (timeRemaining > 0 && timeRemaining < 180000) {
+                    lot.endTime = new Date(Date.now() + 180000); 
+                }
                 
                 await lot.save();
-                await Bid.create({ amount: bidAmount, LotId: lot.id, UserId: user.id, userPhone: user.phone });
+                await Bid.create({ 
+                    amount: bidAmount, 
+                    LotId: lot.id, 
+                    UserId: user.id, 
+                    userPhone: user.phone 
+                });
 
-                const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
+                const latestBid = await Bid.findOne({ 
+                    where: { LotId: lot.id }, 
+                    order: [['createdAt', 'DESC']] 
+                });
                 const prevLeaderId = latestBid ? latestBid.UserId : null;
 
                 const updatedLots = await Lot.findAll({ include: [Bid] });
@@ -420,7 +499,12 @@ io.on('connection', async (socket) => {
                 socket.emit('bidSuccess', { message: 'Ставка успешно принята!' });
 
                 if (prevLeaderId && prevLeaderId !== user.id) {
-                    io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: bidAmount });
+                    io.emit('outbid', { 
+                        previousUserId: prevLeaderId, 
+                        lotId: lot.id, 
+                        title: lot.title, 
+                        newPrice: bidAmount 
+                    });
                 }
 
                 await triggerAutoBids(lot.id);
@@ -428,6 +512,7 @@ io.on('connection', async (socket) => {
                 socket.emit('bidError', { message: `Ставка слишком мала!` });
             }
         } catch (error) {
+            console.error('Ошибка ставки:', error);
             socket.emit('bidError', { message: 'Ошибка сервера' });
         }
     });
@@ -437,64 +522,41 @@ io.on('connection', async (socket) => {
     });
 });
 
-// === 6. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
-// Раздача React-приложения через Node.js (заменяет Nginx)
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+// === 6. РАЗДАЧА ФРОНТЕНДА (КРИТИЧЕСКИ ВАЖНО ДЛЯ SPA REACT) ===
+const frontendPath = path.join(__dirname, '../frontend/build');
+console.log('📦 Подключение папки с фронтендом:', frontendPath);
+
+// Отдаем статику (js, css, картинки)
+app.use(express.static(frontendPath));
+
+// Для всех остальных путей отдаем index.html (React Router)
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+        if (err) {
+            console.error('❌ Ошибка отправки index.html:', err);
+            res.status(500).send('Ошибка загрузки фронтенда. Проверьте папку build.');
+        }
+    });
 });
 
+// === 7. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
 async function startServer() {
     try {
-        // ВНИМАНИЕ: { force: false } чтобы при случайном переклике PM2 база данных НЕ очищалась полностью, сохраняя лоты и пользователей боевого сервера.
+        // { force: false } сохраняет данные при перезапусках
         await sequelize.sync({ force: false }); 
-        console.log('✅ База данных синхронизирована');
+        console.log('✅ База данных готова');
 
-        // Создаем демо-лоты только если таблица пустая
-        const count = await Lot.count();
-        if (count === 0) {
-            await Lot.create({
-                auctionId: 'A-2026-05',
-                lotNumber: 'L-54321',
-                title: 'Седельный тягач KAMAZ 5490 NEO',
-                description: 'Отличное состояние, один владелец. Своевременный сервис в официальном дилерском центре.',
-                year: 2021,
-                mileage: '284 000 км',
-                currentPrice: 4250000,
-                minStep: 50000,
-                reservePrice: 4500000,     // Резервная цена контрагента
-                estimatedValue: 4800000,   // Зеленая яркая рыночная оценка
-                endTime: new Date(Date.now() + 86400000), 
-                hasNds: true
-            });
-
-            await Lot.create({
-                auctionId: 'A-2026-05',
-                lotNumber: 'L-98765',
-                title: 'Полуприцеп шторный ТОНАР T3-13',
-                description: 'Требует небольшого косметического ремонта тента. Оси в идеале, резина свежая.',
-                year: 2020,
-                mileage: 'Без пробега по РФ',
-                currentPrice: 650000,
-                minStep: 20000,
-                reservePrice: 750000,
-                estimatedValue: 950000,
-                endTime: new Date(Date.now() + 600000), // Закончится через 10 минут для тестов
-                hasNds: true
-            });
-        }
-
-        const PORT = process.env.PORT || 5001;
-        server.listen(PORT, () => {
+        const PORT = process.env.PORT || 80;
+        server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Сервер РОЙ ТОРГ запущен на порту ${PORT}`);
             
-            // === 7. ФОНОВЫЕ ЗАДАЧИ (CRON-УВЕДОМЛЕНИЯ ОБ ОФЕРТЕ) ===
+            // CRON-УВЕДОМЛЕНИЯ ОБ ОКОНЧАНИИ ТОРГОВ
             setInterval(async () => {
                 try {
                     const expiredLots = await Lot.findAll({
-                        where: {
-                            status: 'active',
-                            endTime: { [Op.lt]: new Date() }
+                        where: { 
+                            status: 'active', 
+                            endTime: { [Op.lt]: new Date() } 
                         },
                         include: [Bid]
                     });
@@ -503,19 +565,17 @@ async function startServer() {
                         lot.status = 'completed';
                         await lot.save();
                         
-                        const topBids = await Bid.findAll({
-                            where: { LotId: lot.id },
-                            order: [['amount', 'DESC']],
-                            limit: 3
+                        const topBids = await Bid.findAll({ 
+                            where: { LotId: lot.id }, 
+                            order: [['amount', 'DESC']], 
+                            limit: 3 
                         });
                         
                         console.log(`🏁 Аукцион ${lot.lotNumber} официально завершен сервером.`);
                         
                         if (topBids.length > 0) {
                             const winningAmount = topBids[0].amount;
-                            // Проверяем, выполнено ли условие резервной цены контрагента
                             const isReserveMet = !lot.reservePrice || winningAmount >= lot.reservePrice;
-                            // Считаем 3% невозвратной комиссии от итоговой ставки для перехода к ДКП
                             const computedCommission = Math.round(winningAmount * 0.03);
 
                             if (!isReserveMet) {
@@ -527,9 +587,9 @@ async function startServer() {
                                 title: lot.title,
                                 winnerPhone: topBids[0].userPhone,
                                 winnerUserId: topBids[0].UserId,
-                                managerPhone: '+7 (921) 123-45-67', // Контакт личного куратора сделки в СПБ
-                                reserveMet: isReserveMet,          // Сигнал фронтенду: сделка или переговоры
-                                commissionAmount: computedCommission // Сумма 3% к оплате на Р/С
+                                managerPhone: '+7 (921) 123-45-67',
+                                reserveMet: isReserveMet,          
+                                commissionAmount: computedCommission 
                             });
                         }
                     }
@@ -541,7 +601,7 @@ async function startServer() {
                 } catch (err) {
                     console.error("Ошибка в cron-задаче:", err);
                 }
-            }, 10000); // Проверка каждые 10 секунд
+            }, 10000); 
         });
 
     } catch (error) {
