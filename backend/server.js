@@ -530,7 +530,7 @@ console.log('📦 Подключение папки с фронтендом:', f
 app.use(express.static(frontendPath));
 
 // Для всех остальных путей отдаем index.html (React Router)
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
         if (err) {
             console.error('❌ Ошибка отправки index.html:', err);
