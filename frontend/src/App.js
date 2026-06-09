@@ -7,7 +7,7 @@ import {
   MessageCircle, Info, CalendarClock, Archive, Package, CarFront, Tractor,
   ListOrdered, CreditCard, FileUp, User, Bot, History, Lock, UploadCloud, Image as ImageIcon,
   PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat, PhoneCall,
-  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote
+  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
@@ -804,6 +804,10 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
       openAuth();
       return;
     }
+    if (currentUser.isBlocked) {
+        addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error");
+        return;
+    }
     if (!currentUser.isVerified && currentUser.depositBalance < 5000) {
       addToast("Доступ запрещен", "Для участия в торгах необходимо пополнить депозит на 5 000 ₽ в Личном кабинете.", "error");
       navigate('profile');
@@ -820,6 +824,10 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   const toggleAutoBroker = () => {
       if (!currentUser) {
           openAuth();
+          return;
+      }
+      if (currentUser.isBlocked) {
+          addToast("Доступ запрещен", "Ваш аккаунт заблокирован.", "error");
           return;
       }
       if (!autoBrokerLimit || autoBrokerLimit <= lot.currentPrice) {
@@ -1153,7 +1161,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   );
 };
 
-// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ (Скролл-навигация)
+// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ (С загрузкой документов)
 const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) => {
   const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
 
@@ -1190,6 +1198,42 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
         setIsProcessingTopUp(false);
     }
   };
+
+  const handleUserDocUpload = async (e, type) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append(type, file);
+
+      try {
+          addToast('Отправка', 'Загружаем документ...', 'info');
+          const response = await fetch(`http://81.26.184.131:80/api/user/${currentUser.id}/documents`, {
+              method: 'POST', body: formData
+          });
+          const data = await response.json();
+          if (data.success) {
+              setCurrentUser(data.user);
+              addToast('Успех', 'Документ успешно загружен. Ожидайте модерации.', 'success');
+          } else {
+              addToast('Ошибка', 'Не удалось загрузить документ', 'error');
+          }
+      } catch (error) {
+          addToast('Сбой', 'Ошибка соединения с сервером', 'error');
+      }
+  };
+
+  // Экран для заблокированных юзеров
+  if (currentUser.isBlocked) {
+      return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-red-50">
+              <ShieldBan size={64} className="text-red-500 mb-4" />
+              <h2 className="text-2xl font-black text-red-800 mb-2">Аккаунт заблокирован</h2>
+              <p className="text-red-600 mb-6 max-w-md text-center">Ваш доступ к торгам ограничен администратором платформы РОЙ ТОРГ. Пожалуйста, обратитесь в поддержку.</p>
+              <a href="https://t.me/ROYMTK" target="_blank" rel="noreferrer" className="bg-red-600 text-white font-bold px-6 py-3 rounded-xl">Написать в поддержку</a>
+          </div>
+      );
+  }
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
@@ -1248,7 +1292,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                       <h3 className="font-bold text-slate-800 text-lg mb-2">Пополнение баланса</h3>
                       <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
                           Для полноценного участия в торгах и активации аккаунта необходимо внести гарантийный депозит в размере <b>5 000 ₽</b>. 
-                          Сумма холдируется на вашей карте и автоматически возвращается при проигрыше.
+                          Сумма холдируется на вашей карте и автоматически возвращается при проигрыше. Либо загрузите документы ниже для ручной модерации администратором.
                       </p>
                       <button 
                           onClick={handleTopUp} 
@@ -1267,9 +1311,9 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                     <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex items-start gap-4">
                         <CheckCircle2 className="text-green-600 mt-1" size={24} />
                         <div>
-                            <h3 className="font-bold text-green-800 text-lg mb-1">Депозит успешно внесен</h3>
+                            <h3 className="font-bold text-green-800 text-lg mb-1">Аккаунт полностью верифицирован</h3>
                             <p className="text-green-700 text-sm leading-relaxed">
-                                Ваш аккаунт полностью верифицирован. Вы можете делать ставки на любые лоты в пределах вашего депозита. 
+                                Вы можете делать ставки на любые лоты в пределах вашего депозита. 
                                 Если вы не выиграете торги, вы сможете вывести депозит обратно на карту в любой момент без комиссий.
                             </p>
                             <button className="mt-4 border border-green-600 text-green-700 hover:bg-green-100 font-bold py-2 px-6 rounded-lg transition text-sm">
@@ -1333,29 +1377,49 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
 
               <div id="sec-documents" className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm scroll-mt-24">
                   <h2 className="text-2xl font-black text-slate-800 mb-6">Мои документы</h2>
-                  <p className="text-slate-600 text-sm mb-6">Загрузите документы для быстрой генерации Договора Купли-Продажи (ДКП) в случае победы на аукционе.</p>
+                  <p className="text-slate-600 text-sm mb-6">Загрузите документы для ручной модерации администратором. Это позволит получить полный доступ к торгам без внесения депозита.</p>
                   
                   <div className="space-y-4">
-                      <div className="border border-slate-200 p-4 rounded-xl flex items-center justify-between hover:border-blue-300 transition cursor-pointer bg-slate-50 group">
+                      {/* Карточка ЮЛ */}
+                      <div className="border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between bg-slate-50 gap-4">
                           <div className="flex items-center gap-4">
-                              <div className="bg-white p-3 rounded-lg shadow-sm text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition"><FileText size={20}/></div>
+                              <div className="bg-white p-3 rounded-lg shadow-sm text-blue-600"><FileText size={20}/></div>
                               <div>
                                   <h4 className="font-bold text-slate-700">Реквизиты компании (Карточка ЮЛ)</h4>
-                                  <p className="text-xs text-slate-500">Для юридических лиц</p>
+                                  <p className="text-xs text-slate-500">Для юридических лиц (PDF)</p>
                               </div>
                           </div>
-                          <button className="text-blue-600 font-bold text-sm">Загрузить</button>
+                          <div className="w-full md:w-auto">
+                              {currentUser.companyPdf ? (
+                                  <span className="text-green-600 font-bold text-sm flex items-center gap-1 bg-green-100 px-3 py-1.5 rounded-lg"><CheckCircle2 size={16}/> Загружено</span>
+                              ) : (
+                                  <label className="cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2 rounded-lg font-bold text-sm block text-center transition">
+                                      Выбрать файл
+                                      <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleUserDocUpload(e, 'companyPdf')} />
+                                  </label>
+                              )}
+                          </div>
                       </div>
                       
-                      <div className="border border-slate-200 p-4 rounded-xl flex items-center justify-between hover:border-blue-300 transition cursor-pointer bg-slate-50 group">
+                      {/* Паспорт ФЛ */}
+                      <div className="border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between bg-slate-50 gap-4">
                           <div className="flex items-center gap-4">
-                              <div className="bg-white p-3 rounded-lg shadow-sm text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition"><User size={20}/></div>
+                              <div className="bg-white p-3 rounded-lg shadow-sm text-blue-600"><User size={20}/></div>
                               <div>
                                   <h4 className="font-bold text-slate-700">Паспорт (Разворот + Прописка)</h4>
-                                  <p className="text-xs text-slate-500">Для физических лиц</p>
+                                  <p className="text-xs text-slate-500">Для физических лиц (PDF)</p>
                               </div>
                           </div>
-                          <button className="text-blue-600 font-bold text-sm">Загрузить</button>
+                          <div className="w-full md:w-auto">
+                              {currentUser.passportPdf ? (
+                                  <span className="text-green-600 font-bold text-sm flex items-center gap-1 bg-green-100 px-3 py-1.5 rounded-lg"><CheckCircle2 size={16}/> Загружено</span>
+                              ) : (
+                                  <label className="cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2 rounded-lg font-bold text-sm block text-center transition">
+                                      Выбрать файл
+                                      <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleUserDocUpload(e, 'passportPdf')} />
+                                  </label>
+                              )}
+                          </div>
                       </div>
                   </div>
               </div>
@@ -1387,6 +1451,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isLoading, setIsLoading] = useState(false);
     const [stats, setStats] = useState({ totalUsers: 0, activeLots: 0, completedLots: 0, frequentBidders: 0 });
+    const [adminUsers, setAdminUsers] = useState([]);
     
     // Новые стейты для загружаемых файлов
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -1414,7 +1479,36 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 .then(data => setStats(data))
                 .catch(console.error);
         }
+        if (activeTab === 'users') {
+            fetchUsers();
+        }
     }, [activeTab]);
+
+    const fetchUsers = async () => {
+        try {
+            const res = await fetch('http://81.26.184.131:80/api/admin/users');
+            const data = await res.json();
+            if (data.success) setAdminUsers(data.users);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleUserAction = async (userId, action) => {
+        try {
+            const res = await fetch(`http://81.26.184.131:80/api/admin/users/${userId}/action`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setAdminUsers(data.users);
+                addToast('Успех', 'Статус пользователя обновлен', 'success');
+            }
+        } catch (error) {
+            addToast('Ошибка', 'Не удалось изменить статус', 'error');
+        }
+    };
 
     const handleFileChange = (e) => {
         if (e.target.files) {
@@ -1534,6 +1628,10 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <LayoutDashboard size={18}/> Дашборд
                 </button>
+                {/* НОВАЯ ВКЛАДКА: Пользователи */}
+                <button onClick={() => setActiveTab('users')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <Users size={18}/> Пользователи
+                </button>
                 <button onClick={() => setActiveTab('create')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'create' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <PlusCircle size={18}/> Создать лот
                 </button>
@@ -1547,6 +1645,67 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm">
                 
+                {/* ВКЛАДКА ПОЛЬЗОВАТЕЛИ */}
+                {activeTab === 'users' && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-slate-50">
+                                    <th className="py-4 px-4 font-bold rounded-tl-xl">Телефон</th>
+                                    <th className="py-4 px-4 font-bold">Депозит</th>
+                                    <th className="py-4 px-4 font-bold">Документы</th>
+                                    <th className="py-4 px-4 font-bold">Статус</th>
+                                    <th className="py-4 px-4 font-bold text-right rounded-tr-xl">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {adminUsers.map((user) => (
+                                    <tr key={user.id} className={`border-b border-slate-100 transition ${user.isBlocked ? 'bg-red-50/50' : 'hover:bg-slate-50'}`}>
+                                        <td className="py-4 px-4 font-bold text-slate-800">{user.phone}</td>
+                                        <td className="py-4 px-4 font-bold text-blue-600">{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
+                                        <td className="py-4 px-4">
+                                            <div className="flex flex-col gap-1 text-sm">
+                                                {user.companyPdf ? <a href={`http://81.26.184.131:80${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
+                                                {user.passportPdf ? <a href={`http://81.26.184.131:80${user.passportPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><User size={14}/> Паспорт ФЛ</a> : <span className="text-slate-400 text-xs">ФЛ: Нет</span>}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-4">
+                                            <div className="flex flex-col gap-1 items-start">
+                                                {user.isBlocked ? (
+                                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">Заблокирован</span>
+                                                ) : user.isVerified ? (
+                                                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">Верифицирован</span>
+                                                ) : (
+                                                    <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded">Без доступа</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-4 flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => handleUserAction(user.id, 'verify')} 
+                                                className={`p-2 rounded-lg transition ${user.isVerified ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                                title={user.isVerified ? "Снять верификацию" : "Верифицировать вручную"}
+                                            >
+                                                <UserCheck size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleUserAction(user.id, 'block')} 
+                                                className={`p-2 rounded-lg transition ${user.isBlocked ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                                title={user.isBlocked ? "Разблокировать" : "Заблокировать аккаунт"}
+                                            >
+                                                <ShieldBan size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {adminUsers.length === 0 && (
+                                    <tr><td colSpan="5" className="text-center py-8 text-slate-500">Пользователи не найдены.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
                 {activeTab === 'dashboard' && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
@@ -1639,6 +1798,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                             )}
                         </div>
 
+                        {/* ЗАГРУЗКА PDF ДЛЯ ЛОТА */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-slate-50 p-6 rounded-xl border-2 border-dashed border-slate-300">
                                 <div className="flex items-center gap-4 mb-4">

@@ -59,7 +59,11 @@ const User = sequelize.define('User', {
     phone: { type: DataTypes.STRING, unique: true, allowNull: false },
     inn: { type: DataTypes.STRING, allowNull: true },
     depositBalance: { type: DataTypes.INTEGER, defaultValue: 0 },
-    isVerified: { type: DataTypes.BOOLEAN, defaultValue: false }
+    isVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // НОВЫЕ ПОЛЯ ДЛЯ МОДЕРАЦИИ И ДОКУМЕНТОВ
+    isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false },
+    passportPdf: { type: DataTypes.STRING, defaultValue: '' },
+    companyPdf: { type: DataTypes.STRING, defaultValue: '' }
 });
 
 const Lot = sequelize.define('Lot', {
@@ -115,7 +119,7 @@ app.post('/api/upload', upload.fields([
     { name: 'avtotekaPdf', maxCount: 1 }
 ]), (req, res) => {
     try {
-        console.log('📥 Поступил запрос на загрузку файлов:', req.files);
+        console.log('📥 Поступил запрос на загрузку файлов лота:', req.files);
         
         // Используем относительные пути, чтобы избежать проблем с IP/доменом
         const photoUrls = req.files['photos'] ? req.files['photos'].map(file => `/uploads/${file.filename}`) : [];
@@ -131,6 +135,34 @@ app.post('/api/upload', upload.fields([
     } catch (error) {
         console.error('❌ Ошибка upload:', error);
         res.status(500).json({ error: 'Ошибка при сохранении файлов' });
+    }
+});
+
+// НОВЫЙ РОУТ: Загрузка документов пользователя из Личного Кабинета
+app.post('/api/user/:id/documents', upload.fields([
+    { name: 'passportPdf', maxCount: 1 },
+    { name: 'companyPdf', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        console.log(`📥 Загрузка документов для юзера ${req.params.id}`);
+        const user = await User.findByPk(req.params.id);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
+
+        if (req.files['passportPdf']) {
+            user.passportPdf = `/uploads/${req.files['passportPdf'][0].filename}`;
+        }
+        if (req.files['companyPdf']) {
+            user.companyPdf = `/uploads/${req.files['companyPdf'][0].filename}`;
+        }
+        
+        await user.save();
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error('❌ Ошибка загрузки документов юзера:', error);
+        res.status(500).json({ error: 'Ошибка при сохранении документов' });
     }
 });
 
@@ -182,8 +214,14 @@ app.post('/api/auth/verify', async (req, res) => {
     try {
         const [user, created] = await User.findOrCreate({
             where: { phone },
-            defaults: { depositBalance: 0, isVerified: false }
+            defaults: { depositBalance: 0, isVerified: false, isBlocked: false }
         });
+        
+        // Проверка на блокировку при входе
+        if (user.isBlocked) {
+            return res.status(403).json({ error: 'Ваш аккаунт заблокирован администратором' });
+        }
+
         smsCodes.delete(phone);
         res.json({ success: true, message: created ? 'Пользователь зарегистрирован' : 'Успешный вход', user });
     } catch (error) {
@@ -196,7 +234,11 @@ app.post('/api/topup', async (req, res) => {
     try {
         const { userId, amount } = req.body;
         const user = await User.findByPk(userId);
+        
         if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        
+        // Проверка на блокировку при пополнении
+        if (user.isBlocked) return res.status(403).json({ error: 'Действие запрещено. Аккаунт заблокирован.' });
 
         user.depositBalance += Number(amount);
         if (user.depositBalance >= 5000) user.isVerified = true;
@@ -256,6 +298,47 @@ app.get('/api/user/:userId/bids', async (req, res) => {
         res.json({ success: true, lots: Array.from(lotsMap.values()) });
     } catch (error) {
         console.error('Ошибка истории:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// НОВЫЙ РОУТ: Получение списка пользователей для Админки
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await User.findAll({
+            order: [['createdAt', 'DESC']],
+            attributes: { exclude: ['updatedAt'] }
+        });
+        res.json({ success: true, users });
+    } catch (error) {
+        console.error('Ошибка при загрузке пользователей:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// НОВЫЙ РОУТ: Управление статусом пользователя (Блокировка / Верификация)
+app.patch('/api/admin/users/:id/action', async (req, res) => {
+    try {
+        const { action } = req.body; // action может быть 'verify' или 'block'
+        const user = await User.findByPk(req.params.id);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
+
+        if (action === 'verify') {
+            user.isVerified = !user.isVerified;
+        } else if (action === 'block') {
+            user.isBlocked = !user.isBlocked;
+        }
+        
+        await user.save();
+        
+        // Возвращаем обновленный список всех пользователей
+        const users = await User.findAll({ order: [['createdAt', 'DESC']] });
+        res.json({ success: true, users });
+    } catch (error) {
+        console.error('Ошибка модерации пользователя:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
@@ -323,6 +406,10 @@ async function triggerAutoBids(lotId) {
         await lot.save();
 
         const user = await User.findByPk(bestAutoBid.UserId);
+        
+        // Если юзер был заблокирован во время работы автоброкера - пропускаем ставку
+        if (user.isBlocked) return;
+
         await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
 
         const updatedLots = await Lot.findAll({ include: [Bid] });
@@ -350,7 +437,14 @@ io.on('connection', async (socket) => {
         const { lotId, maxAmount, userId } = data;
         try {
             const user = await User.findByPk(userId);
-            if (!user || (!user.isVerified && user.depositBalance < 5000)) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            if (!user) return;
+
+            // Блокировка автоброкера для забаненных
+            if (user.isBlocked) {
+                return socket.emit('bidError', { message: 'Ваш аккаунт заблокирован администратором' });
+            }
+
+            if (!user.isVerified && user.depositBalance < 5000) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
             
             const lot = await Lot.findByPk(lotId);
             if (lot.status === 'completed') return socket.emit('bidError', { message: 'Торги завершены!' });
@@ -385,7 +479,14 @@ io.on('connection', async (socket) => {
         const { lotId, bidAmount, userId } = data;
         try {
             const user = await User.findByPk(userId);
-            if (!user || (!user.isVerified && user.depositBalance < 5000)) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            if (!user) return;
+            
+            // Блокировка ставок для забаненных
+            if (user.isBlocked) {
+                return socket.emit('bidError', { message: 'Действие запрещено. Аккаунт заблокирован.' });
+            }
+
+            if (!user.isVerified && user.depositBalance < 5000) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
 
             const lot = await Lot.findByPk(lotId);
             if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return socket.emit('bidError', { message: 'Торги завершены!' });
@@ -444,9 +545,10 @@ app.get(/^(?!\/(api|uploads)).*/, (req, res) => {
 // === 7. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
 async function startServer() {
     try {
-        // Установлено { force: false }, чтобы база данных НЕ перезаписывалась и данные НЕ стирались
-        await sequelize.sync({ force: false }); 
-        console.log('✅ База данных готова (Синхронизация завершена, данные в безопасности)');
+        // ВАЖНО: alter: true позволяет Sequelize безопасно добавить новые колонки
+        // (isBlocked, passportPdf, companyPdf) в существующую таблицу SQLite без потери данных
+        await sequelize.sync({ alter: true }); 
+        console.log('✅ База данных готова (Структура успешно обновлена)');
 
         const PORT = process.env.PORT || 80;
         server.listen(PORT, '0.0.0.0', () => {
