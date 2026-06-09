@@ -87,7 +87,10 @@ const Lot = sequelize.define('Lot', {
     videoUrl: { type: DataTypes.STRING, defaultValue: '' },
     inspectionPdf: { type: DataTypes.STRING, defaultValue: '' }, // Ссылка на акт осмотра
     avtotekaPdf: { type: DataTypes.STRING, defaultValue: '' },   // Ссылка на автотеку
-    status: { type: DataTypes.STRING, defaultValue: 'active' }
+    status: { type: DataTypes.STRING, defaultValue: 'active' },
+    // НОВЫЕ ПОЛЯ: Безопасность продавца
+    sellerInn: { type: DataTypes.STRING, defaultValue: '' },
+    isSecurityChecked: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
 
 const Bid = sequelize.define('Bid', {
@@ -112,7 +115,7 @@ const smsCodes = new Map();
 
 // === 3. REST API ===
 
-// Мульти-загрузка: фото + PDF
+// Мульти-загрузка: фото + PDF лота
 app.post('/api/upload', upload.fields([
     { name: 'photos', maxCount: 30 },
     { name: 'inspectionPdf', maxCount: 1 },
@@ -234,7 +237,6 @@ app.post('/api/topup', async (req, res) => {
     try {
         const { userId, amount } = req.body;
         const user = await User.findByPk(userId);
-        
         if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
         
         // Проверка на блокировку при пополнении
@@ -256,7 +258,7 @@ app.post('/api/lots', async (req, res) => {
             auctionId, lotNumber, title, description, year, mileage, 
             currentPrice, minStep, reservePrice, estimatedValue, hasNds, 
             duration, durationType, startTime, images, mechanicRating, videoUrl,
-            inspectionPdf, avtotekaPdf 
+            inspectionPdf, avtotekaPdf, sellerInn, isSecurityChecked
         } = req.body;
         
         const start = startTime ? new Date(startTime).getTime() : Date.now();
@@ -278,7 +280,9 @@ app.post('/api/lots', async (req, res) => {
             avtotekaPdf: avtotekaPdf || '',
             status: 'active',
             mechanicRating: mechanicRating ? Number(mechanicRating) : 8,
-            videoUrl: videoUrl || ''
+            videoUrl: videoUrl || '',
+            sellerInn: sellerInn || '',
+            isSecurityChecked: isSecurityChecked || false
         });
 
         const updatedLots = await Lot.findAll({ include: [Bid] });
@@ -302,7 +306,7 @@ app.get('/api/user/:userId/bids', async (req, res) => {
     }
 });
 
-// НОВЫЙ РОУТ: Получение списка пользователей для Админки
+// НОВЫЙ РОУТ АДМИНКИ: Получить всех пользователей
 app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await User.findAll({
@@ -316,10 +320,10 @@ app.get('/api/admin/users', async (req, res) => {
     }
 });
 
-// НОВЫЙ РОУТ: Управление статусом пользователя (Блокировка / Верификация)
+// НОВЫЙ РОУТ АДМИНКИ: Модерация (бан/верификация)
 app.patch('/api/admin/users/:id/action', async (req, res) => {
     try {
-        const { action } = req.body; // action может быть 'verify' или 'block'
+        const { action } = req.body; 
         const user = await User.findByPk(req.params.id);
         
         if (!user) {
@@ -407,7 +411,7 @@ async function triggerAutoBids(lotId) {
 
         const user = await User.findByPk(bestAutoBid.UserId);
         
-        // Если юзер был заблокирован во время работы автоброкера - пропускаем ставку
+        // Предохранитель: заблокированный юзер не может делать автоставки
         if (user.isBlocked) return;
 
         await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
@@ -545,10 +549,11 @@ app.get(/^(?!\/(api|uploads)).*/, (req, res) => {
 // === 7. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
 async function startServer() {
     try {
-        // ВАЖНО: alter: true позволяет Sequelize безопасно добавить новые колонки
-        // (isBlocked, passportPdf, companyPdf) в существующую таблицу SQLite без потери данных
+        // ВАЖНО: Заменено на { alter: true }, чтобы Sequelize безопасно добавил 
+        // новые колонки (isBlocked, sellerInn, passportPdf и т.д.) в БД 
+        // БЕЗ удаления старых пользователей и лотов! 
         await sequelize.sync({ alter: true }); 
-        console.log('✅ База данных готова (Структура успешно обновлена)');
+        console.log('✅ База данных готова (Структура обновлена, данные в безопасности)');
 
         const PORT = process.env.PORT || 80;
         server.listen(PORT, '0.0.0.0', () => {

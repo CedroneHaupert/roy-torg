@@ -7,11 +7,18 @@ import {
   MessageCircle, Info, CalendarClock, Archive, Package, CarFront, Tractor,
   ListOrdered, CreditCard, FileUp, User, Bot, History, Lock, UploadCloud, Image as ImageIcon,
   PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat, PhoneCall,
-  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck
+  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
 const socket = io('http://81.26.184.131:80');
+
+// === Вспомогательная функция маскировки ИНН ===
+const maskInn = (inn) => {
+    if (!inn) return 'Не указан';
+    if (inn.length < 6) return 'Скрыт';
+    return inn.substring(0, 3) + '*****' + inn.substring(inn.length - 2);
+};
 
 // === КОМПОНЕНТ УВЕДОМЛЕНИЙ (TOASTS) ===
 const ToastContainer = ({ toasts, removeToast }) => (
@@ -128,7 +135,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
                     className="mt-1 w-5 h-5 text-[#F97316] rounded border-slate-300 focus:ring-[#F97316] cursor-pointer shrink-0" 
                 />
                 <label htmlFor="terms" className="text-xs text-slate-600 leading-tight cursor-pointer">
-                    Я принимаю условия <button type="button" onClick={() => {onClose(); navigate('privacy');}} className="text-blue-600 font-bold hover:underline">Политики обработки персональных данных и Оферты</button>, и подтверждаю ознакомление с правилом невозвратной комиссии 3% в случае победы на торгах.
+                    Я принимаю условия <button type="button" onClick={() => {onClose(); navigate('offer');}} className="text-blue-600 font-bold hover:underline">Публичной оферты</button>, и подтверждаю ознакомление с правилом невозвратной комиссии 3% в случае победы на торгах.
                 </label>
             </div>
 
@@ -179,7 +186,6 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
 const Navbar = ({ navigate, currentPage, currentUser, openAuth }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Пульсирующая подсказка для неавторизованных
   useEffect(() => {
       if (!currentUser) {
           const timer = setTimeout(() => setShowTooltip(true), 3000);
@@ -242,30 +248,29 @@ const Footer = ({ navigate }) => (
       <div className="col-span-1 md:col-span-2">
         <div className="font-black text-2xl tracking-tight text-white mb-4">РОЙ<span className="text-[#F97316]">ТОРГ</span></div>
         <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-          Надежная платформа для покупки и продажи коммерческой техники через открытые аукционы. Входит в транспортную экосистему РОЙ. Гарантия состояния, прозрачное ценообразование и логистика под ключ.
+          Надежная ИТ-платформа для поиска коммерческой техники через систему открытых торгов. Мы предоставляем программное обеспечение, честную независимую инспекцию и юридическую безопасность.
         </p>
       </div>
       <div>
-        <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Информация</h4>
+        <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Документы</h4>
         <ul className="space-y-2 text-sm text-slate-400">
-          <li><button onClick={() => navigate('about')} className="hover:text-[#F97316] transition">О платформе</button></li>
-          <li><button onClick={() => navigate('finance')} className="hover:text-[#F97316] transition">Программа софинансирования</button></li>
+          <li><button onClick={() => navigate('offer')} className="hover:text-[#F97316] transition">Публичная оферта</button></li>
+          <li><button onClick={() => navigate('rules')} className="hover:text-[#F97316] transition">Правила проведения торгов</button></li>
           <li><button onClick={() => navigate('privacy')} className="hover:text-[#F97316] transition">Политика конфиденциальности</button></li>
-          <li><button className="hover:text-[#F97316] transition">Правила проведения торгов</button></li>
         </ul>
       </div>
       <div>
-        <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Продавцам</h4>
+        <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Продавцам и Партнерам</h4>
         <ul className="space-y-2 text-sm text-slate-400">
-          <li><button onClick={() => navigate('sell')} className="hover:text-[#F97316] transition text-[#F97316]">Подать заявку на продажу</button></li>
-          <li><button className="hover:text-[#F97316] transition">Как проходит инспекция</button></li>
-          <li><button className="hover:text-[#F97316] transition">Юридические гарантии</button></li>
+          <li><button onClick={() => navigate('sell')} className="hover:text-[#F97316] transition text-[#F97316]">Подать заявку на оценку</button></li>
+          <li><button onClick={() => navigate('finance')} className="hover:text-[#F97316] transition">Софинансирование</button></li>
+          <li><button onClick={() => navigate('inspection')} className="hover:text-[#F97316] transition">Как проходит инспекция</button></li>
         </ul>
       </div>
     </div>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 pt-8 border-t border-slate-800 text-xs text-slate-500 flex flex-col md:flex-row justify-between items-center gap-4">
-      <p>© 2026 Экосистема РОЙ. Все права защищены.</p>
-      <p>Цены на сайте могут быть указаны с учетом НДС или без него в зависимости от статуса продавца.</p>
+      <p>© 2026 Экосистема РОЙ. Все права защищены. Сайт не является публичной офертой, за исключением страницы "Публичная оферта".</p>
+      <p>Сделки купли-продажи заключаются напрямую между Продавцом и Покупателем.</p>
     </div>
   </footer>
 );
@@ -319,6 +324,12 @@ const LotCard = ({ lot, onClick }) => {
           <span>{lot.year || '2022'} г.</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
           <span>{lot.mileage || 'Без пробега'}</span>
+          {lot.city && (
+            <>
+              <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+              <span>{lot.city}</span>
+            </>
+          )}
         </div>
         <div className="mt-auto bg-slate-50 rounded-xl p-3 border border-slate-100">
           <div className="flex justify-between items-center mb-2">
@@ -401,7 +412,6 @@ const HomePage = ({ navigate, lots }) => {
       </div>
     </section>
 
-    {/* Топ сделок (История) */}
     <section className="bg-slate-50 border-t border-b border-slate-200 py-20 mb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -430,7 +440,6 @@ const HomePage = ({ navigate, lots }) => {
       </div>
     </section>
 
-    {/* Мокапы и погружение */}
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20 overflow-hidden">
         <div className="bg-blue-600 rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between relative shadow-2xl">
             <div className="md:w-1/2 text-white z-10 mb-8 md:mb-0 pr-0 md:pr-8">
@@ -460,13 +469,11 @@ const HomePage = ({ navigate, lots }) => {
                     </div>
                 </div>
             </div>
-            {/* Декоративные круги */}
             <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
             <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-blue-700 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
         </div>
     </section>
 
-    {/* Отзывы */}
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
         <h2 className="text-3xl font-black text-slate-900 mb-10 text-center">Говорят перевозчики</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -491,23 +498,105 @@ const HomePage = ({ navigate, lots }) => {
   </main>
 )};
 
-// НОВАЯ СТРАНИЦА: Политика
+// === ИНФОРМАЦИОННЫЕ И ЮРИДИЧЕСКИЕ СТРАНИЦЫ ===
 const PrivacyPage = () => (
     <main className="max-w-4xl mx-auto px-4 py-12 flex-1 w-full">
         <h1 className="text-3xl font-black text-slate-900 mb-8">Политика обработки персональных данных</h1>
-        <div className="prose prose-slate max-w-none text-slate-600 space-y-6">
-            <p>Настоящая политика составлена в соответствии с требованиями Федерального закона от 27.07.2006. №152-ФЗ «О персональных данных» и определяет порядок обработки персональных данных платформой «РОЙ ТОРГ».</p>
-            <h3 className="text-xl font-bold text-slate-800">1. Собираемые данные</h3>
+        <div className="prose prose-slate max-w-none text-slate-600 space-y-6 leading-relaxed">
+            <p>Настоящая политика составлена в соответствии с требованиями Федерального закона от 27.07.2006. №152-ФЗ «О персональных данных» и определяет порядок обработки персональных данных ИТ-платформой «РОЙ ТОРГ».</p>
+            <h3 className="text-xl font-bold text-slate-800 mt-6">1. Собираемые данные</h3>
             <p>Платформа собирает и обрабатывает следующие данные: номер мобильного телефона (для авторизации), ФИО, ИНН и сканы документов (при прохождении добровольной верификации в Личном кабинете для получения статуса "Верифицированный участник").</p>
-            <h3 className="text-xl font-bold text-slate-800">2. Цели обработки</h3>
-            <p>Данные обрабатываются исключительно для: обеспечения доступа к аукционам, связи с пользователем для заключения договоров купли-продажи, возврата гарантийного депозита и информирования о новых лотах в Telegram/MAX.</p>
-            <h3 className="text-xl font-bold text-slate-800">3. Безопасность и передача третьим лицам</h3>
-            <p>Мы применяем современные технические средства шифрования. Данные не передаются третьим лицам (за исключением требований правоохранительных органов РФ). Все чаты с продавцами происходят анонимно через внутреннего ИИ-бота платформы.</p>
+            <h3 className="text-xl font-bold text-slate-800 mt-6">2. Цели обработки</h3>
+            <p>Данные обрабатываются исключительно для: обеспечения доступа к функционалу Платформы, связи с пользователем для заключения договоров купли-продажи с третьими лицами, возврата гарантийного депозита и информирования о новых лотах.</p>
+            <h3 className="text-xl font-bold text-slate-800 mt-6">3. Безопасность и передача третьим лицам</h3>
+            <p>Мы применяем современные технические средства шифрования. Данные не передаются третьим лицам (за исключением требований правоохранительных органов РФ). Платформа выступает только в роли информационного посредника.</p>
         </div>
     </main>
 );
 
-// НОВАЯ СТРАНИЦА: О нас
+const OfferPage = () => (
+    <main className="max-w-4xl mx-auto px-4 py-12 flex-1 w-full">
+        <h1 className="text-3xl font-black text-slate-900 mb-8">Публичная оферта (Лицензионный договор)</h1>
+        <div className="prose prose-slate max-w-none text-slate-600 space-y-6 leading-relaxed bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <p>Настоящий документ является официальным предложением (публичной офертой) заключить Лицензионный договор о предоставлении права использования программы для ЭВМ «РОЙ ТОРГ» (далее — Платформа).</p>
+            
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">1. Предмет договора</h3>
+            <p>Лицензиар предоставляет Лицензиату право использования Платформы на условиях простой (неисключительной) лицензии. Платформа представляет собой ИТ-сервис для публикации объявлений и проведения электронных торгов в формате аукциона.</p>
+            
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">2. Гарантийный депозит</h3>
+            <p>Для активации функции совершения ставок (Автоброкера), Пользователь обязан внести обеспечительный платеж (Депозит) в размере 5 000 (Пять тысяч) рублей. Для физических лиц платеж холдируется (замораживается) на банковской карте без фактического списания. Для юридических лиц оплата производится на основании выставленного Счета.</p>
+            
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">3. Лицензионное вознаграждение (Комиссия)</h3>
+            <p>В случае победы на торгах, Победитель обязуется выплатить Лицензиару вознаграждение в размере 3% (Три процента) от итоговой стоимости Лота за предоставление права использования Платформы и функции Автоброкера. До момента оплаты Лицензионного вознаграждения контакты Продавца не передаются.</p>
+
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">4. Ответственность сторон</h3>
+            <p>Платформа не является стороной сделки купли-продажи техники. Договор купли-продажи заключается напрямую между Продавцом и Покупателем. Лицензиар не несет ответственности за скрытые дефекты техники, однако гарантирует достоверность Акта инспекции на момент его составления.</p>
+        </div>
+    </main>
+);
+
+const RulesPage = () => (
+    <main className="max-w-4xl mx-auto px-4 py-12 flex-1 w-full">
+        <h1 className="text-3xl font-black text-slate-900 mb-8">Правила проведения электронных торгов</h1>
+        <div className="space-y-8">
+            <div className="flex gap-4">
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">1</div>
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Статус участников</h3>
+                    <p className="text-slate-600 leading-relaxed">К участию допускаются только верифицированные пользователи (внесшие депозит 5000 ₽ или загрузившие корпоративные документы). Администрация оставляет за собой право заблокировать любого участника без объяснения причин.</p>
+                </div>
+            </div>
+            <div className="flex gap-4">
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">2</div>
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Автоброкер и ставки</h3>
+                    <p className="text-slate-600 leading-relaxed">Шаг аукциона фиксирован. При установке "Автоброкера" система автоматически перебивает ставки других участников на один минимальный шаг, пока не будет достигнут установленный вами лимит.</p>
+                </div>
+            </div>
+            <div className="flex gap-4">
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">3</div>
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Скрытый резерв</h3>
+                    <p className="text-slate-600 leading-relaxed">Продавец имеет право установить минимальную цену продажи (Скрытый резерв). Если по окончании времени торгов итоговая ставка не достигла резерва, продавец имеет право отказаться от сделки.</p>
+                </div>
+            </div>
+            <div className="flex gap-4">
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">4</div>
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Продление времени (Анти-снайпер)</h3>
+                    <p className="text-slate-600 leading-relaxed">Любая ставка, сделанная за 3 минуты до окончания торгов, автоматически продлевает аукцион на 3 минуты для обеспечения честной конкуренции.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+);
+
+const InspectionPage = () => (
+    <main className="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+        <div className="text-center mb-12">
+            <h1 className="text-4xl font-black text-slate-900 mb-4">Алгоритм инспекции РОЙ</h1>
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto">Мы исключили человеческий фактор. Каждая единица техники проверяется по строгим стандартам с применением нейросетевого анализа.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6"><MapPin size={28}/></div>
+                <h3 className="text-xl font-bold text-slate-800 mb-3">1. Выездной скаут</h3>
+                <p className="text-slate-600 leading-relaxed">Наш механик приезжает на базу продавца со специализированным чек-листом из 120 пунктов. Проводится диагностика узлов, замер ЛКП и фото/видеофиксация всех дефектов.</p>
+            </div>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6"><MonitorSmartphone size={28}/></div>
+                <h3 className="text-xl font-bold text-slate-800 mb-3">2. ИИ-анализ кабинета</h3>
+                <p className="text-slate-600 leading-relaxed">Собранные медиафайлы загружаются во внутренний кабинет РОЙ. Наша нейросеть анализирует снимки на предмет скрытых следов кузовного ремонта и износа деталей.</p>
+            </div>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <div className="w-14 h-14 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mb-6"><FileSignature size={28}/></div>
+                <h3 className="text-xl font-bold text-slate-800 mb-3">3. Акт и Карточка</h3>
+                <p className="text-slate-600 leading-relaxed">Формируется итоговая оценка (от 1 до 10). Система автоматически генерирует PDF-акт инспекции, который прикрепляется к лоту для абсолютной прозрачности.</p>
+            </div>
+        </div>
+    </main>
+);
+
 const AboutPage = () => (
     <main className="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
         <div className="text-center mb-12">
@@ -530,7 +619,6 @@ const AboutPage = () => (
     </main>
 );
 
-// НОВАЯ СТРАНИЦА: Продать технику
 const SellPage = ({ addToast }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -585,14 +673,12 @@ const SellPage = ({ addToast }) => {
     );
 };
 
-// НОВАЯ СТРАНИЦА: Финансирование (DVIZH-proekt Калькулятор)
-const FinancePage = () => {
+const FinancePage = ({ addToast }) => {
     const [price, setPrice] = useState(5000000);
     const [downpaymentPercent, setDownpaymentPercent] = useState(20);
     const [months, setMonths] = useState(24);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Логика калькулятора (Аннуитет)
-    // Ставка: 30% годовых
     const downpaymentSum = price * (downpaymentPercent / 100);
     const creditSum = price - downpaymentSum;
     const monthlyRate = 0.30 / 12; // 30% / 12 мес
@@ -605,6 +691,14 @@ const FinancePage = () => {
     const totalPayout = monthlyPayment * months;
     const overpayment = totalPayout - creditSum;
 
+    const handleApply = async () => {
+        setIsSubmitting(true);
+        setTimeout(() => {
+            addToast('Заявка принята', 'Финансовый менеджер ДВИЖ-ИНВЕСТ.РФ скоро с вами свяжется.', 'success');
+            setIsSubmitting(false);
+        }, 1000);
+    };
+
     return (
         <main className="max-w-6xl mx-auto px-4 py-12 flex-1 w-full">
             <div className="text-center mb-12">
@@ -614,10 +708,8 @@ const FinancePage = () => {
             </div>
 
             <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col lg:flex-row">
-                {/* Левая часть: Ползунки */}
                 <div className="lg:w-3/5 p-8 lg:p-12 border-b lg:border-b-0 lg:border-r border-slate-100">
                     <div className="space-y-10">
-                        {/* Стоимость техники */}
                         <div>
                             <div className="flex justify-between items-end mb-4">
                                 <label className="font-bold text-slate-800">Стоимость техники (Цена лота)</label>
@@ -627,7 +719,6 @@ const FinancePage = () => {
                             <div className="flex justify-between text-xs text-slate-400 mt-2 font-medium"><span>500 тыс.</span><span>15 млн.</span></div>
                         </div>
 
-                        {/* Первоначальный взнос */}
                         <div>
                             <div className="flex justify-between items-end mb-4">
                                 <label className="font-bold text-slate-800">Первоначальный взнос ({downpaymentPercent}%)</label>
@@ -637,7 +728,6 @@ const FinancePage = () => {
                             <div className="flex justify-between text-xs text-slate-400 mt-2 font-medium"><span className="text-amber-600 font-bold">Мин. 20%</span><span>80%</span></div>
                         </div>
 
-                        {/* Срок */}
                         <div>
                             <div className="flex justify-between items-end mb-4">
                                 <label className="font-bold text-slate-800">Срок софинансирования</label>
@@ -649,7 +739,6 @@ const FinancePage = () => {
                     </div>
                 </div>
 
-                {/* Правая часть: Результаты */}
                 <div className="lg:w-2/5 bg-slate-50 p-8 lg:p-12 flex flex-col justify-center">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
                         <div className="text-sm text-slate-500 mb-1 font-medium">Ежемесячный платеж</div>
@@ -670,8 +759,8 @@ const FinancePage = () => {
                             </div>
                         </div>
                     </div>
-                    <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2">
-                        <Calculator size={20}/> Оставить заявку
+                    <button onClick={handleApply} disabled={isSubmitting} className="w-full bg-blue-600 disabled:bg-blue-400 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2">
+                        <Calculator size={20}/> {isSubmitting ? 'Отправка...' : 'Оставить заявку'}
                     </button>
                     <p className="text-xs text-slate-400 text-center mt-4">Расчет является предварительным. Финансирование предоставляется партнером платформы — DVIZH-proekt.</p>
                 </div>
@@ -804,6 +893,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
       openAuth();
       return;
     }
+    // Защита от заблокированных
     if (currentUser.isBlocked) {
         addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error");
         return;
@@ -826,6 +916,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           openAuth();
           return;
       }
+      // Защита от заблокированных
       if (currentUser.isBlocked) {
           addToast("Доступ запрещен", "Ваш аккаунт заблокирован.", "error");
           return;
@@ -959,6 +1050,20 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                             </div>
                         </div>
 
+                        {/* БЛОК БЕЗОПАСНОСТИ ПРОДАВЦА */}
+                        {lot.sellerInn && (
+                            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-green-600 text-white p-2 rounded-lg"><ShieldCheck size={20}/></div>
+                                    <div>
+                                        <h4 className="font-bold text-green-900 text-sm">Продавец проверен СБ</h4>
+                                        <div className="text-xs text-green-700">ИНН: <span className="font-mono bg-green-100 px-1 rounded">{maskInn(lot.sellerInn)}</span></div>
+                                    </div>
+                                </div>
+                                {lot.isSecurityChecked && <span className="text-xs font-bold text-green-600 hidden sm:block">Риск банкротства отсутствует</span>}
+                            </div>
+                        )}
+
                         <h3 className="font-bold text-lg mb-3">Описание от продавца</h3>
                         <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
                             {lot.description || "Техника в отличном состоянии, полностью обслужена. Готова к работе сразу после покупки. Проведено полное ТО. Причина продажи: обновление автопарка. Торг возможен только в рамках аукциона."}
@@ -1072,6 +1177,18 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
             )}
             {!lot.reservePrice && <div className="mb-6"></div>}
 
+            {/* БЛОК ОПЛАТЫ КОМИССИИ ДЛЯ ПОБЕДИТЕЛЯ */}
+            {isArchived && currentUser && winner && winner.userPhone === currentUser.phone && (
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4 text-center">
+                    <CheckSquare className="mx-auto text-blue-600 mb-2" size={32} />
+                    <h3 className="font-bold text-blue-900 mb-1">Поздравляем с победой!</h3>
+                    <p className="text-xs text-blue-700 mb-4">Для получения контактов продавца и заключения ДКП необходимо оплатить лицензионное вознаграждение платформы (3%): <br/><b className="text-lg">{Math.round(lot.currentPrice * 0.03).toLocaleString('ru-RU')} ₽</b></p>
+                    <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition text-sm">
+                        Оплатить комиссию 3%
+                    </button>
+                </div>
+            )}
+
             {!isArchived && (
               <div className="space-y-4">
                 <div className="flex border border-slate-300 rounded-xl overflow-hidden focus-within:border-blue-600">
@@ -1161,9 +1278,11 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   );
 };
 
-// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ (С загрузкой документов)
+// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ (С загрузкой документов и счетами для ЮЛ)
 const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) => {
   const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
+  const [showRefundInfo, setShowRefundInfo] = useState(false);
+  const [depositMethod, setDepositMethod] = useState('card');
 
   if (!currentUser) {
       return (
@@ -1172,6 +1291,18 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
               <h2 className="text-2xl font-black text-slate-800 mb-2">Доступ ограничен</h2>
               <p className="text-slate-500 mb-6">Пожалуйста, авторизуйтесь для просмотра личного кабинета.</p>
               <button onClick={() => navigate('home')} className="bg-blue-600 text-white font-bold px-6 py-3 rounded-xl">Вернуться на главную</button>
+          </div>
+      );
+  }
+
+  // Экран блокировки
+  if (currentUser.isBlocked) {
+      return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-red-50">
+              <ShieldBan size={64} className="text-red-500 mb-4" />
+              <h2 className="text-2xl font-black text-red-800 mb-2">Аккаунт заблокирован</h2>
+              <p className="text-red-600 mb-6 max-w-md text-center">Ваш доступ к торгам ограничен администратором платформы РОЙ ТОРГ. Пожалуйста, обратитесь в поддержку.</p>
+              <a href="https://t.me/ROYMTK" target="_blank" rel="noreferrer" className="bg-red-600 text-white font-bold px-6 py-3 rounded-xl">Написать в поддержку</a>
           </div>
       );
   }
@@ -1223,17 +1354,11 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
       }
   };
 
-  // Экран для заблокированных юзеров
-  if (currentUser.isBlocked) {
-      return (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-red-50">
-              <ShieldBan size={64} className="text-red-500 mb-4" />
-              <h2 className="text-2xl font-black text-red-800 mb-2">Аккаунт заблокирован</h2>
-              <p className="text-red-600 mb-6 max-w-md text-center">Ваш доступ к торгам ограничен администратором платформы РОЙ ТОРГ. Пожалуйста, обратитесь в поддержку.</p>
-              <a href="https://t.me/ROYMTK" target="_blank" rel="noreferrer" className="bg-red-600 text-white font-bold px-6 py-3 rounded-xl">Написать в поддержку</a>
-          </div>
-      );
-  }
+  const handleLogout = () => {
+      setCurrentUser(null);
+      navigate('home');
+      addToast('Выход', 'Вы успешно вышли из системы', 'success');
+  };
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
@@ -1270,6 +1395,10 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                   <button onClick={() => scrollToSection('sec-settings')} className="w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition text-slate-600 hover:bg-slate-100 hover:text-blue-600">
                       <Bot size={18} /> Автоторг (Робот)
                   </button>
+                  <hr className="my-2 border-slate-100" />
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition text-red-600 hover:bg-red-50">
+                      <LogOut size={18} /> Выйти
+                  </button>
               </div>
           </div>
 
@@ -1289,38 +1418,64 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                   
                   {!currentUser.isVerified && (
                     <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
-                      <h3 className="font-bold text-slate-800 text-lg mb-2">Пополнение баланса</h3>
-                      <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
-                          Для полноценного участия в торгах и активации аккаунта необходимо внести гарантийный депозит в размере <b>5 000 ₽</b>. 
-                          Сумма холдируется на вашей карте и автоматически возвращается при проигрыше. Либо загрузите документы ниже для ручной модерации администратором.
-                      </p>
-                      <button 
-                          onClick={handleTopUp} 
-                          disabled={isProcessingTopUp}
-                          className="bg-[#F97316] disabled:bg-orange-400 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-orange-500/20 transition flex items-center gap-2"
-                      >
-                          {isProcessingTopUp ? 'Связь с банком...' : <><CreditCard size={18}/> Оплатить 5 000 ₽</>}
-                      </button>
-                      <p className="text-xs text-slate-400 mt-3 flex items-center gap-1">
-                          <ShieldCheck size={14}/> Платеж защищен шифрованием
-                      </p>
+                      <h3 className="font-bold text-slate-800 text-lg mb-4">Пополнение баланса (Депозит 5000 ₽)</h3>
+                      
+                      <div className="flex border-b border-orange-200 mb-6">
+                          <button onClick={() => setDepositMethod('card')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'card' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Физлиц (Картой)</button>
+                          <button onClick={() => setDepositMethod('invoice')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'invoice' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Юрлиц (Счет)</button>
+                      </div>
+
+                      {depositMethod === 'card' ? (
+                          <>
+                              <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
+                                  Для полноценного участия в торгах необходимо внести гарантийный депозит. Сумма холдируется (замораживается) на вашей карте и автоматически возвращается при проигрыше.
+                              </p>
+                              <button onClick={handleTopUp} disabled={isProcessingTopUp} className="bg-[#F97316] disabled:bg-orange-400 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-orange-500/20 transition flex items-center gap-2">
+                                  {isProcessingTopUp ? 'Связь с банком (ЮKassa)...' : <><CreditCard size={18}/> Заморозить 5 000 ₽</>}
+                              </button>
+                              <p className="text-xs text-slate-400 mt-3 flex items-center gap-1"><ShieldCheck size={14}/> Платеж защищен шифрованием эквайринга</p>
+                          </>
+                      ) : (
+                          <>
+                              <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
+                                  Сгенерируйте счет на оплату для вашей бухгалтерии. После поступления средств на наш расчетный счет, депозит будет зачислен в Личный кабинет.
+                              </p>
+                              <button onClick={() => addToast('Счет сгенерирован', 'Началось скачивание PDF-файла.', 'success')} className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition flex items-center gap-2">
+                                  <FileText size={18}/> Скачать счет (PDF)
+                              </button>
+                              <p className="text-xs text-slate-400 mt-3">Срок зачисления зависит от банка (обычно 1-2 рабочих дня).</p>
+                          </>
+                      )}
                     </div>
                   )}
                   
                   {currentUser.isVerified && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex items-start gap-4">
-                        <CheckCircle2 className="text-green-600 mt-1" size={24} />
-                        <div>
-                            <h3 className="font-bold text-green-800 text-lg mb-1">Аккаунт полностью верифицирован</h3>
-                            <p className="text-green-700 text-sm leading-relaxed">
-                                Вы можете делать ставки на любые лоты в пределах вашего депозита. 
-                                Если вы не выиграете торги, вы сможете вывести депозит обратно на карту в любой момент без комиссий.
-                            </p>
-                            <button className="mt-4 border border-green-600 text-green-700 hover:bg-green-100 font-bold py-2 px-6 rounded-lg transition text-sm">
-                                Оформить возврат средств
-                            </button>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                            <CheckCircle2 className="text-green-600 mt-1" size={24} />
+                            <div>
+                                <h3 className="font-bold text-green-800 text-lg mb-1">Аккаунт полностью верифицирован</h3>
+                                <p className="text-green-700 text-sm leading-relaxed max-w-md">
+                                    Вы можете делать ставки на любые лоты в пределах вашего депозита.
+                                </p>
+                            </div>
                         </div>
+                        <button onClick={() => setShowRefundInfo(!showRefundInfo)} className="border border-green-600 text-green-700 hover:bg-green-100 font-bold py-2 px-6 rounded-lg transition text-sm whitespace-nowrap">
+                            Оформить возврат средств
+                        </button>
                     </div>
+                  )}
+
+                  {showRefundInfo && (
+                      <div className="mt-4 p-5 bg-white border-2 border-slate-200 border-dashed rounded-xl animate-in fade-in slide-in-from-top-2">
+                          <h4 className="font-bold text-slate-800 mb-2">Процедура возврата депозита</h4>
+                          <p className="text-sm text-slate-600 mb-3 leading-relaxed">
+                              Для возврата средств напишите ваш номер телефона и заявление на бланке организации (или в свободной форме для физлиц) с указанием полных реквизитов счета.
+                          </p>
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm text-slate-800 font-mono text-center">
+                              Отправьте скан на почту: <b>pls@roy-torg.ru</b>
+                          </div>
+                      </div>
                   )}
               </div>
 
@@ -1465,7 +1620,8 @@ const AdminPage = ({ navigate, lots, addToast }) => {
         lotNumber: generateLotNumber(),
         title: '', description: '', year: '', mileage: '', currentPrice: '',
         minStep: '50000', reservePrice: '', estimatedValue: '', hasNds: true, startTime: '', 
-        duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: ''
+        duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: '',
+        sellerInn: '', isSecurityChecked: false
     });
 
     const now = Date.now();
@@ -1582,7 +1738,8 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                   auctionId: 'A-2026-05', lotNumber: generateLotNumber(),
                   title: '', description: '', year: '', mileage: '', currentPrice: '', 
                   minStep: '50000', reservePrice: '', estimatedValue: '', hasNds: true, startTime: '', 
-                  duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: ''
+                  duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: '',
+                  sellerInn: '', isSecurityChecked: false
                 });
                 setSelectedFiles([]);
                 setInspectionFile(null);
@@ -1748,6 +1905,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                             <label className="block text-sm font-bold text-slate-700 mb-2">Название техники (Марка, модель)</label>
                             <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600" placeholder="Например: Седельный тягач SITRAK C7H MAX" />
                         </div>
+                        
                         <div className="grid grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Год выпуска</label>
@@ -1756,6 +1914,18 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Пробег / Моточасы</label>
                                 <input type="text" value={formData.mileage} onChange={e => setFormData({...formData, mileage: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600" placeholder="125 000 км" />
+                            </div>
+                        </div>
+
+                        {/* БЛОК ПРОВЕРКИ СБ */}
+                        <div className="grid grid-cols-2 gap-6 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">ИНН Продавца (для СБ)</label>
+                                <input type="text" value={formData.sellerInn} onChange={e => setFormData({...formData, sellerInn: e.target.value})} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600 font-mono" placeholder="7810123456" />
+                            </div>
+                            <div className="flex items-center gap-3 pt-6">
+                                <input type="checkbox" id="sb" checked={formData.isSecurityChecked} onChange={e => setFormData({...formData, isSecurityChecked: e.target.checked})} className="w-5 h-5 text-blue-600 rounded cursor-pointer" />
+                                <label htmlFor="sb" className="font-bold text-slate-700 cursor-pointer flex items-center gap-2"><ShieldCheck size={18} className="text-green-600"/> Проверен СБ (Рисков нет)</label>
                             </div>
                         </div>
 
@@ -2059,10 +2229,13 @@ export default function App() {
       
       {currentPage === 'home' && <HomePage navigate={navigate} lots={lots} />}
       {currentPage === 'catalog' && <CatalogPage navigate={navigate} lots={lots} />}
-      {currentPage === 'finance' && <FinancePage />}
+      {currentPage === 'finance' && <FinancePage addToast={addToast} />}
       {currentPage === 'about' && <AboutPage />}
       {currentPage === 'sell' && <SellPage addToast={addToast} />}
       {currentPage === 'privacy' && <PrivacyPage />}
+      {currentPage === 'offer' && <OfferPage />}
+      {currentPage === 'rules' && <RulesPage />}
+      {currentPage === 'inspection' && <InspectionPage />}
       {currentPage === 'admin' && <AdminPage navigate={navigate} lots={lots} addToast={addToast} />}
       {currentPage === 'profile' && <ProfilePage navigate={navigate} currentUser={currentUser} setCurrentUser={setCurrentUser} addToast={addToast} lots={lots} />}
       {currentPage === 'lot' && (
