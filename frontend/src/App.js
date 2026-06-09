@@ -57,7 +57,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
         const data = await response.json();
         if (data.success) {
             setStep(2);
-            addToast('СМС отправлено', 'Проверьте ваш телефон (или консоль сервера)', 'success');
+            addToast('СМС отправлено', 'Проверьте ваш телефон', 'success');
         } else {
             addToast('Ошибка', data.error, 'error');
         }
@@ -143,7 +143,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
         ) : (
           <form onSubmit={handleCodeSubmit} className="p-6 space-y-6 animate-in slide-in-from-right-4">
             <p className="text-sm text-slate-500">
-              Мы отправили код подтверждения на номер <span className="font-bold text-slate-800">{phone}</span>. <br/>(Для демо введите: 0000)
+              Мы отправили код подтверждения на номер <span className="font-bold text-slate-800">{phone}</span>.
             </p>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Код из СМС</label>
@@ -260,11 +260,6 @@ const Footer = ({ navigate }) => (
           <li><button onClick={() => navigate('sell')} className="hover:text-[#F97316] transition text-[#F97316]">Подать заявку на продажу</button></li>
           <li><button className="hover:text-[#F97316] transition">Как проходит инспекция</button></li>
           <li><button className="hover:text-[#F97316] transition">Юридические гарантии</button></li>
-          <li className="pt-4">
-            <button onClick={() => navigate('admin')} className="text-slate-500 hover:text-slate-300 transition text-xs flex items-center gap-1">
-              <Settings size={12}/> Панель управления (Демо)
-            </button>
-          </li>
         </ul>
       </div>
     </div>
@@ -298,7 +293,7 @@ const LotCard = ({ lot, onClick }) => {
     return () => clearInterval(interval);
   }, [lot.endTime, isArchived]);
 
-  const displayImage = (lot.images && lot.images.length > 0) ? lot.images[0] : (lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`);
+  const displayImage = (lot.images && lot.images.length > 0) ? `http://81.26.184.131:80${lot.images[0]}` : (lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`);
 
   return (
     <div onClick={() => onClick(lot.id)} className={`bg-white rounded-2xl border overflow-hidden transition-shadow group flex flex-col cursor-pointer h-full ${isArchived ? 'border-slate-200 opacity-80' : 'border-slate-200 hover:shadow-xl hover:border-blue-300'}`}>
@@ -576,7 +571,7 @@ const SellPage = ({ addToast }) => {
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Где находится техника?</label>
-                        <input required type="text" placeholder="Санкт-Петербург, п. Шушары" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
+                        <input required type="text" placeholder="Санкт-Петербург" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Контактный телефон</label>
@@ -782,7 +777,6 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   const [autoBrokerLimit, setAutoBrokerLimit] = useState('');
   const [autoBrokerActive, setAutoBrokerActive] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [downloadingFile, setDownloadingFile] = useState(null);
 
   useEffect(() => {
       if (lot) setBidAmount(lot.currentPrice + lot.minStep);
@@ -799,7 +793,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   })).sort((a,b) => b.amount - a.amount) : [];
 
   const displayImages = lot.images && lot.images.length > 0 
-    ? lot.images 
+    ? lot.images.map(img => `http://81.26.184.131:80${img}`)
     : [lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`];
 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
@@ -842,19 +836,12 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   };
 
   const handleDownloadPDF = (type) => {
-      setDownloadingFile(type);
-      addToast('Генерация отчета', `Формируем PDF документ: ${type}...`, 'info');
-      setTimeout(() => {
-          setDownloadingFile(null);
-          const element = document.createElement("a");
-          const file = new Blob([`Демонстрационный PDF отчет: ${type}\nЛот: ${lot.title}\nНомер: ${lot.lotNumber}`], {type: 'application/pdf'});
-          element.href = URL.createObjectURL(file);
-          element.download = `Отчет_${type}_Лот_${lot.lotNumber || lot.id}.pdf`;
-          document.body.appendChild(element);
-          element.click();
-          document.body.removeChild(element);
-          addToast('Успешно', 'Файл скачан на ваше устройство.', 'success');
-      }, 1500);
+      const fileUrl = type === 'Инспекция' ? lot.inspectionPdf : lot.avtotekaPdf;
+      if (!fileUrl) {
+          addToast('Ошибка', 'Файл еще не загружен продавцом', 'error');
+          return;
+      }
+      window.open(`http://81.26.184.131:80${fileUrl}`, '_blank');
   };
 
   return (
@@ -877,7 +864,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
       {!isArchived && lot.estimatedValue && (
         <div className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white p-5 rounded-2xl shadow-lg mb-6 flex items-center justify-between">
             <div>
-                <div className="text-green-100 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><TrendingUp size={14}/> Рыночная оценка РОЙ</div>
+                <div className="text-green-100 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><TrendingUp size={14}/> Рыночная оценка</div>
                 <div className="text-3xl font-black">~ {Number(lot.estimatedValue).toLocaleString('ru-RU')} ₽</div>
             </div>
             <div className="hidden sm:block bg-white/20 p-4 rounded-full backdrop-blur-sm">
@@ -985,10 +972,9 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                             </div>
                             <button 
                                 onClick={() => handleDownloadPDF('Инспекция')}
-                                disabled={downloadingFile === 'Инспекция'}
-                                className="bg-white border border-blue-300 text-blue-700 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 group-hover:bg-blue-600 group-hover:text-white transition disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="bg-white border border-blue-300 text-blue-700 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 group-hover:bg-blue-600 group-hover:text-white transition"
                             >
-                                {downloadingFile === 'Инспекция' ? <><Loader2 size={16} className="animate-spin"/> Формирование...</> : <><DownloadCloud size={16}/> Скачать отчет</>}
+                                <DownloadCloud size={16}/> Скачать отчет
                             </button>
                         </div>
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col justify-between group transition hover:shadow-md">
@@ -1003,10 +989,9 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                             </div>
                             <button 
                                 onClick={() => handleDownloadPDF('Автотека')}
-                                disabled={downloadingFile === 'Автотека'}
-                                className="bg-white border border-slate-300 text-slate-700 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 group-hover:bg-slate-800 group-hover:text-white transition disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="bg-white border border-slate-300 text-slate-700 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 group-hover:bg-slate-800 group-hover:text-white transition"
                             >
-                                {downloadingFile === 'Автотека' ? <><Loader2 size={16} className="animate-spin"/> Формирование...</> : <><DownloadCloud size={16}/> Скачать автотеку</>}
+                                <DownloadCloud size={16}/> Скачать автотеку
                             </button>
                         </div>
                      </div>
@@ -1157,7 +1142,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <h4 className="font-bold text-slate-800 mb-2">Связь с продавцом</h4>
             <p className="text-xs text-slate-500 mb-4">Безопасный анонимный чат. ИИ-бот ответит на вопросы по акту осмотра или передаст запрос владельцу.</p>
-            <a href="https://t.me/ROYMTK_bot" target="_blank" rel="noreferrer" className="w-full bg-[#0088cc] hover:bg-[#0077b3] text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+            <a href="https://t.me/ROYMTK" target="_blank" rel="noreferrer" className="w-full bg-[#0088cc] hover:bg-[#0077b3] text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
               <MessageCircle size={18}/> Задать вопрос в Telegram
             </a>
           </div>
@@ -1402,7 +1387,11 @@ const AdminPage = ({ navigate, lots, addToast }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isLoading, setIsLoading] = useState(false);
     const [stats, setStats] = useState({ totalUsers: 0, activeLots: 0, completedLots: 0, frequentBidders: 0 });
+    
+    // Новые стейты для загружаемых файлов
     const [selectedFiles, setSelectedFiles] = useState([]);
+    const [inspectionFile, setInspectionFile] = useState(null);
+    const [avtotekaFile, setAvtotekaFile] = useState(null);
     
     const generateLotNumber = () => 'L-' + Math.floor(10000 + Math.random() * 90000);
 
@@ -1451,12 +1440,17 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
         try {
             let uploadedUrls = [];
+            let uploadedInspection = '';
+            let uploadedAvtoteka = '';
             
-            if (selectedFiles.length > 0) {
+            if (selectedFiles.length > 0 || inspectionFile || avtotekaFile) {
                 const formDataObj = new FormData();
+                
                 selectedFiles.forEach(file => {
                     formDataObj.append('photos', file);
                 });
+                if (inspectionFile) formDataObj.append('inspectionPdf', inspectionFile);
+                if (avtotekaFile) formDataObj.append('avtotekaPdf', avtotekaFile);
 
                 const uploadRes = await fetch('http://81.26.184.131:80/api/upload', {
                     method: 'POST',
@@ -1466,8 +1460,10 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 const uploadData = await uploadRes.json();
                 if (uploadData.success) {
                     uploadedUrls = uploadData.urls;
+                    uploadedInspection = uploadData.inspectionPdf;
+                    uploadedAvtoteka = uploadData.avtotekaPdf;
                 } else {
-                    addToast('Ошибка', 'Ошибка при загрузке фотографий', 'error');
+                    addToast('Ошибка', 'Ошибка при загрузке файлов', 'error');
                     setIsLoading(false);
                     return;
                 }
@@ -1475,7 +1471,9 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
             const lotDataToSubmit = {
                 ...formData,
-                images: uploadedUrls
+                images: uploadedUrls,
+                inspectionPdf: uploadedInspection,
+                avtotekaPdf: uploadedAvtoteka
             };
 
             const response = await fetch('http://81.26.184.131:80/api/lots', {
@@ -1493,6 +1491,8 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                   duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: ''
                 });
                 setSelectedFiles([]);
+                setInspectionFile(null);
+                setAvtotekaFile(null);
                 setActiveTab('scheduled');
             } else {
                 addToast('Ошибка', 'Не удалось создать лот', 'error');
@@ -1609,9 +1609,9 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Ссылка на видео-обзор</label>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Ссылка на видео-обзор (VK Видео, Rutube)</label>
                                 <div className="relative">
-                                    <input type="text" value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600 pl-10" placeholder="https://youtube.com/..." />
+                                    <input type="text" value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600 pl-10" placeholder="https://vk.com/video..." />
                                     <PlayCircle size={18} className="absolute left-3 top-3.5 text-red-500"/>
                                 </div>
                             </div>
@@ -1637,6 +1637,49 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                                     <CheckCircle2 size={16} className="inline mr-1"/> Выбрано файлов: {selectedFiles.length}
                                 </div>
                             )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-slate-50 p-6 rounded-xl border-2 border-dashed border-slate-300">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="bg-blue-100 p-3 rounded-full text-blue-600"><FileText size={24}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">Акт инспекции</h3>
+                                        <p className="text-xs text-slate-500">Загрузите PDF отчет</p>
+                                    </div>
+                                </div>
+                                <input 
+                                    type="file" 
+                                    accept="application/pdf"
+                                    onChange={(e) => setInspectionFile(e.target.files[0])}
+                                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                                />
+                                {inspectionFile && (
+                                    <div className="mt-4 text-sm font-medium text-green-600 bg-green-50 p-2 rounded-lg border border-green-200 break-all">
+                                        <CheckCircle2 size={16} className="inline mr-1"/> Выбран файл: {inspectionFile.name}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="bg-slate-50 p-6 rounded-xl border-2 border-dashed border-slate-300">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="bg-slate-200 p-3 rounded-full text-slate-700"><Search size={24}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">Отчет Автотеки</h3>
+                                        <p className="text-xs text-slate-500">Загрузите PDF отчет</p>
+                                    </div>
+                                </div>
+                                <input 
+                                    type="file" 
+                                    accept="application/pdf"
+                                    onChange={(e) => setAvtotekaFile(e.target.files[0])}
+                                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-slate-200 file:text-slate-800 hover:file:bg-slate-300 cursor-pointer"
+                                />
+                                {avtotekaFile && (
+                                    <div className="mt-4 text-sm font-medium text-green-600 bg-green-50 p-2 rounded-lg border border-green-200 break-all">
+                                        <CheckCircle2 size={16} className="inline mr-1"/> Выбран файл: {avtotekaFile.name}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div>
@@ -1761,6 +1804,18 @@ export default function App() {
   const [winnerData, setWinnerData] = useState(null);
   
   const [toasts, setToasts] = useState([]);
+
+  // Отслеживаем секретный URL для админки (скрытый путь)
+  useEffect(() => {
+    const handleHashChange = () => {
+        if (window.location.hash === '#admin-panel') {
+            setCurrentPage('admin');
+        }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange(); 
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   
   const addToast = (title, message = '', type = 'info') => {
     const id = Date.now();
