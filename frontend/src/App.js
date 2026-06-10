@@ -430,7 +430,7 @@ const HomePage = ({ navigate, lots }) => {
   <main className="flex-1">
     <section className="bg-slate-900 text-white relative py-20 overflow-hidden">
       {/* ПУТЬ ДО ФОТО ИСПРАВЛЕН: Идет от корня public/ */}
-      <div className="absolute inset-0 bg-[url('/foto2.jpg')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
+      <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity" style={{ backgroundImage: "url('/foto2.jpg')" }}></div>
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/80 to-transparent"></div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight">Прозрачные аукционы<br/><span className="text-blue-400">коммерческой техники</span></h1>
