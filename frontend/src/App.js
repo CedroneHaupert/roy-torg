@@ -352,9 +352,66 @@ const LotCard = ({ lot, onClick }) => {
   );
 };
 
+// === КОМПОНЕНТ ДЛЯ СТРОКИ БЛИЖАЙШЕГО ЛОТА ===
+const UpcomingLotRow = ({ lot, navigate }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+      const updateTimer = () => {
+          const distance = new Date(lot.startTime).getTime() - Date.now();
+          if (distance <= 0) {
+              setTimeLeft('Начинается...');
+              return;
+          }
+          const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const mins = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const secs = Math.floor((distance % (1000 * 60)) / 1000);
+          setTimeLeft(days > 0 ? `${days}д ${hours}ч ${mins}м` : `${hours}ч ${mins}м ${secs}с`);
+      };
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+  }, [lot.startTime]);
+
+  return (
+      <tr className="hover:bg-slate-50 transition cursor-pointer group" onClick={() => navigate('lot', lot.id)}>
+          <td className="py-4 px-6">
+              <div className="font-bold text-slate-800 group-hover:text-blue-600 transition">{lot.title}</div>
+              <div className="text-xs text-slate-500 mt-1">Аукцион #{lot.auctionId || 'A-1000'} • Лот #{lot.lotNumber || lot.id}</div>
+          </td>
+          <td className="py-4 px-6 font-black text-slate-900">{lot.currentPrice.toLocaleString('ru-RU')} ₽</td>
+          <td className="py-4 px-6 text-right">
+              <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">
+                  <CalendarClock size={16} className="animate-pulse" /> {timeLeft}
+              </div>
+          </td>
+      </tr>
+  );
+};
+
 // === СТРАНИЦЫ ===
 
 const HomePage = ({ navigate, lots }) => {
+  // Добавляем состояние для статистики
+  const [stats, setStats] = useState({ users: 115, auctions: 27, sold: 15 });
+
+  // Получаем статистику из базы и плюсуем к нашим базовым значениям
+  useEffect(() => {
+      fetch('http://81.26.184.131:80/api/admin/stats')
+          .then(res => res.json())
+          .then(data => {
+              if (data) {
+                  setStats({
+                      users: 115 + (data.totalUsers || 0),
+                      auctions: 27 + (data.completedLots || 0),
+                      sold: 15 + (data.completedLots || 0)
+                  });
+              }
+          })
+          .catch(console.error);
+  }, []);
+
   const activeLots = lots.filter(l => {
       const now = Date.now();
       const end = new Date(l.endTime).getTime();
@@ -362,9 +419,17 @@ const HomePage = ({ navigate, lots }) => {
       return l.status !== 'completed' && end > now && start <= now;
   });
 
+  // Отфильтровываем лоты, которые еще не начались (Запланированные)
+  const scheduledLots = lots.filter(l => {
+      const now = Date.now();
+      const start = l.startTime ? new Date(l.startTime).getTime() : 0;
+      return l.status !== 'completed' && start > now;
+  }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
   return (
   <main className="flex-1">
     <section className="bg-slate-900 text-white relative py-20 overflow-hidden">
+      {/* ПУТЬ ДО ФОТО ИСПРАВЛЕН: Идет от корня public/ */}
       <div className="absolute inset-0 bg-[url('/foto2.jpg')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/80 to-transparent"></div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -380,7 +445,34 @@ const HomePage = ({ navigate, lots }) => {
       </div>
     </section>
 
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20 mb-16">
+    {/* СТАТИСТИКА: Растет из базы */}
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-20 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-5 hover:-translate-y-1 transition transform">
+                <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Gavel size={32}/></div>
+                <div>
+                    <div className="text-3xl font-black text-slate-800">{stats.auctions}</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">Аукционов</div>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-5 hover:-translate-y-1 transition transform">
+                <div className="bg-green-50 p-4 rounded-2xl text-green-600"><Truck size={32}/></div>
+                <div>
+                    <div className="text-3xl font-black text-slate-800">{stats.sold}</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">Продано техники</div>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-5 hover:-translate-y-1 transition transform">
+                <div className="bg-orange-50 p-4 rounded-2xl text-[#F97316]"><Users size={32}/></div>
+                <div>
+                    <div className="text-3xl font-black text-slate-800">{stats.users}</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">Участников</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 mb-16">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             <button onClick={() => navigate('catalog')} className="bg-white p-6 rounded-2xl shadow-lg hover:-translate-y-1 transition border border-slate-100 group flex flex-col items-center justify-center gap-3">
               <div className="bg-orange-50 p-4 rounded-full text-[#F97316] group-hover:scale-110 transition-transform"><Truck size={32}/></div>
@@ -400,6 +492,34 @@ const HomePage = ({ navigate, lots }) => {
             </button>
         </div>
     </section>
+
+    {/* БЛИЖАЙШИЕ ТОРГИ (АНОНС) */}
+    {scheduledLots.length > 0 && (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
+      <div className="flex justify-between items-end mb-6">
+        <h2 className="text-3xl font-black text-slate-900">Ближайшие торги</h2>
+      </div>
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                  <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
+                          <th className="py-4 px-6 font-bold">Лот / Модель</th>
+                          <th className="py-4 px-6 font-bold">Начальная цена</th>
+                          <th className="py-4 px-6 font-bold text-right">До начала</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {/* Выводим ограниченное количество запланированных лотов строками */}
+                      {scheduledLots.slice(0, 5).map(lot => (
+                          <UpcomingLotRow key={lot.id} lot={lot} navigate={navigate} />
+                      ))}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+    </section>
+    )}
 
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
       <div className="flex justify-between items-end mb-6">
@@ -425,6 +545,7 @@ const HomePage = ({ navigate, lots }) => {
                   { title: "SITRAK C7H MAX (2023)", eval: 5200000, final: 4800000, img: "/sitrak.jpeg" }
               ].map((item, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col hover:shadow-md transition">
+                      {/* ПУТИ ДО ФОТО ИСПРАВЛЕНЫ: Идут от корня public/ */}
                       <div className="h-40 bg-slate-200 rounded-xl mb-4 overflow-hidden"><img src={item.img} alt="" className="w-full h-full object-cover grayscale opacity-80" /></div>
                       <h4 className="font-bold text-slate-800 mb-3">{item.title}</h4>
                       <div className="space-y-2 mb-4">

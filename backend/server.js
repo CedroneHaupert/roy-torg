@@ -115,7 +115,7 @@ const smsCodes = new Map();
 
 // === 3. REST API ===
 
-// Мульти-загрузка: фото + PDF лота
+// Мульти-загрузка: фото + PDF
 app.post('/api/upload', upload.fields([
     { name: 'photos', maxCount: 30 },
     { name: 'inspectionPdf', maxCount: 1 },
@@ -535,8 +535,7 @@ console.log('📦 Подключение папки с фронтендом:', f
 
 app.use(express.static(frontendPath));
 
-// ИСПРАВЛЕНИЕ ДЛЯ КАРТИНОК: Добавлено |uploads в регулярку, 
-// чтобы экспресс не блокировал пути к загруженным файлам.
+// ИСПРАВЛЕНИЕ: Добавлено (api|uploads) чтобы не блокировать картинки!
 app.get(/^(?!\/(api|uploads)).*/, (req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
         if (err) {
@@ -549,11 +548,9 @@ app.get(/^(?!\/(api|uploads)).*/, (req, res) => {
 // === 7. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
 async function startServer() {
     try {
-        // ВАЖНО: Заменено на { alter: true }, чтобы Sequelize безопасно добавил 
-        // новые колонки (isBlocked, sellerInn, passportPdf и т.д.) в БД 
-        // БЕЗ удаления старых пользователей и лотов! 
+        // ВАЖНО: alter: true мягко добавит новые колонки в базу, сохранив старые данные
         await sequelize.sync({ alter: true }); 
-        console.log('✅ База данных готова (Структура обновлена, данные в безопасности)');
+        console.log('✅ База данных готова (Синхронизация завершена)');
 
         const PORT = process.env.PORT || 80;
         server.listen(PORT, '0.0.0.0', () => {
