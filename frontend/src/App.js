@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { 
-  Search, Clock, ShieldCheck, Heart, Truck, CheckCircle2, 
-  ChevronRight, UserCircle, Menu, X, PlusCircle, LayoutDashboard, 
-  Settings, Gavel, FileText, BarChart3, AlertTriangle, ArrowRight, Wallet,
+  Search, Clock, ShieldCheck, Truck, CheckCircle2, 
+  ChevronRight, UserCircle, X, PlusCircle, LayoutDashboard, 
+  Settings, Gavel, FileText, AlertTriangle, ArrowRight, Wallet,
   MessageCircle, Info, CalendarClock, Archive, Package, CarFront, Tractor,
   ListOrdered, CreditCard, FileUp, User, Bot, History, Lock, UploadCloud, Image as ImageIcon,
-  PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat, PhoneCall,
-  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature
+  PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat,
+  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature, LogOut
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
@@ -248,7 +248,7 @@ const Footer = ({ navigate }) => (
       <div className="col-span-1 md:col-span-2">
         <div className="font-black text-2xl tracking-tight text-white mb-4">РОЙ<span className="text-[#F97316]">ТОРГ</span></div>
         <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-          Надежная ИТ-платформа для поиска коммерческой техники через систему открытых торгов. Мы предоставляем программное обеспечение, честную независимую инспекцию и юридическую безопасность.
+          Надежная ИТ-платформа для поиска коммерческой техники через систему открытых торгов. Входит в транспортную экосистему РОЙ. Мы предоставляем программное обеспечение, честную независимую инспекцию и юридическую безопасность.
         </p>
       </div>
       <div>
@@ -365,7 +365,7 @@ const HomePage = ({ navigate, lots }) => {
   return (
   <main className="flex-1">
     <section className="bg-slate-900 text-white relative py-20 overflow-hidden">
-      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1519003722824-194d445e863c?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
+      <div className="absolute inset-0 bg-[url('/foto2.jpg')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/80 to-transparent"></div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight">Прозрачные аукционы<br/><span className="text-blue-400">коммерческой техники</span></h1>
@@ -420,9 +420,9 @@ const HomePage = ({ navigate, lots }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                  { title: "KAMAZ 5490 NEO (2021)", eval: 4800000, final: 4150000, img: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=600&auto=format&fit=crop" },
-                  { title: "Полуприцеп ТОНАР (2020)", eval: 950000, final: 720000, img: "https://images.unsplash.com/photo-1586864387789-628af9feed72?q=80&w=600&auto=format&fit=crop" },
-                  { title: "SITRAK C7H MAX (2023)", eval: 7200000, final: 6800000, img: "https://images.unsplash.com/photo-1519003722824-194d445e863c?q=80&w=600&auto=format&fit=crop" }
+                  { title: "KAMAZ 5490 NEO (2021)", eval: 2800000, final: 2150000, img: "/KAMAZ5490.jpg" },
+                  { title: "Полуприцеп ТОНАР (2020)", eval: 1950000, final: 1220000, img: "/tonar.jpg" },
+                  { title: "SITRAK C7H MAX (2023)", eval: 5200000, final: 4800000, img: "/sitrak.jpeg" }
               ].map((item, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col hover:shadow-md transition">
                       <div className="h-40 bg-slate-200 rounded-xl mb-4 overflow-hidden"><img src={item.img} alt="" className="w-full h-full object-cover grayscale opacity-80" /></div>
@@ -469,6 +469,7 @@ const HomePage = ({ navigate, lots }) => {
                     </div>
                 </div>
             </div>
+            {/* Декоративные круги */}
             <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
             <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-blue-700 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
         </div>
