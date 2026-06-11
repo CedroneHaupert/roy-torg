@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
-const socket = io('http://81.26.184.131:80');
+const socket = io('');
 
 // === Вспомогательная функция маскировки ИНН ===
 const maskInn = (inn) => {
@@ -58,7 +58,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
     
     setIsLoading(true);
     try {
-        const response = await fetch('http://81.26.184.131:80/api/auth/send-code', {
+        const response = await fetch('/api/auth/send-code', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone })
         });
         const data = await response.json();
@@ -79,7 +79,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-        const response = await fetch('http://81.26.184.131:80/api/auth/verify', {
+        const response = await fetch('/api/auth/verify', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code })
         });
         const data = await response.json();
@@ -298,7 +298,7 @@ const LotCard = ({ lot, onClick }) => {
     return () => clearInterval(interval);
   }, [lot.endTime, isArchived]);
 
-  const displayImage = (lot.images && lot.images.length > 0) ? `http://81.26.184.131:80${lot.images[0]}` : (lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`);
+  const displayImage = (lot.images && lot.images.length > 0) ? `${lot.images[0]}` : (lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`);
 
   return (
     <div onClick={() => onClick(lot.id)} className={`bg-white rounded-2xl border overflow-hidden transition-shadow group flex flex-col cursor-pointer h-full ${isArchived ? 'border-slate-200 opacity-80' : 'border-slate-200 hover:shadow-xl hover:border-blue-300'}`}>
@@ -398,7 +398,7 @@ const HomePage = ({ navigate, lots }) => {
 
   // Получаем статистику из базы и плюсуем к нашим базовым значениям
   useEffect(() => {
-      fetch('http://81.26.184.131:80/api/admin/stats')
+      fetch('/api/admin/stats')
           .then(res => res.json())
           .then(data => {
               if (data) {
@@ -728,7 +728,7 @@ const AboutPage = () => (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
             <div>
                 <h3 className="text-2xl font-bold text-slate-800 mb-4">Не просто доска объявлений</h3>
-                <p className="text-slate-600 leading-relaxed mb-4">РОЙ ТОРГ — это технологичное крыло масштабной транспортной экосистемы (MTK ROY). Мы объединяем реальный логистический бизнес, инвестиционные платформы (DVIZH-proekt) и передовые IT-решения (РОЙ ERP).</p>
+                <p className="text-slate-600 leading-relaxed mb-4">РОЙ ТОРГ — это технологичное крыло масштабной транспортной экосистемы (АО РОЙ). Мы объединяем реальный логистический бизнес, инвестиционные платформы (движ-инвест.рф) и передовые IT-решения (РОЙ ERP).</p>
                 <p className="text-slate-600 leading-relaxed">Вся техника, представленная на аукционах, проходит строгую выездную инспекцию нашими региональными скаутами или базируется на собственных охраняемых стоянках в Санкт-Петербурге.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1004,7 +1004,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   })).sort((a,b) => b.amount - a.amount) : [];
 
   const displayImages = lot.images && lot.images.length > 0 
-    ? lot.images.map(img => `http://81.26.184.131:80${img}`)
+    ? lot.images.map(img => `${img}`)
     : [lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`];
 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
@@ -1062,7 +1062,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           addToast('Ошибка', 'Файл еще не загружен продавцом', 'error');
           return;
       }
-      window.open(`http://81.26.184.131:80${fileUrl}`, '_blank');
+      window.open(`${fileUrl}`, '_blank');
   };
 
   return (
@@ -1435,7 +1435,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
     setIsProcessingTopUp(true);
     try {
         await new Promise(resolve => setTimeout(resolve, 1500));
-        const response = await fetch('http://81.26.184.131:80/api/topup', {
+        const response = await fetch('/api/topup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUser.id, amount: 5000 })
@@ -1461,7 +1461,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
 
       try {
           addToast('Отправка', 'Загружаем документ...', 'info');
-          const response = await fetch(`http://81.26.184.131:80/api/user/${currentUser.id}/documents`, {
+          const response = await fetch(`/api/user/${currentUser.id}/documents`, {
               method: 'POST', body: formData
           });
           const data = await response.json();
@@ -1752,7 +1752,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
-            fetch('http://81.26.184.131:80/api/admin/stats')
+            fetch('/api/admin/stats')
                 .then(res => res.json())
                 .then(data => setStats(data))
                 .catch(console.error);
@@ -1764,7 +1764,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('http://81.26.184.131:80/api/admin/users');
+            const res = await fetch('/api/admin/users');
             const data = await res.json();
             if (data.success) setAdminUsers(data.users);
         } catch (error) {
@@ -1774,7 +1774,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     const handleUserAction = async (userId, action) => {
         try {
-            const res = await fetch(`http://81.26.184.131:80/api/admin/users/${userId}/action`, {
+            const res = await fetch(`/api/admin/users/${userId}/action`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action })
             });
@@ -1797,7 +1797,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
     const handleCopyLot = async (id) => {
         try {
-            const res = await fetch(`http://81.26.184.131:80/api/lots/${id}/copy`, { method: 'POST' });
+            const res = await fetch(`/api/lots/${id}/copy`, { method: 'POST' });
             if (res.ok) {
                 addToast('Успех', 'Лот успешно скопирован и перенесен в запланированные', 'success');
             }
@@ -1824,7 +1824,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 if (inspectionFile) formDataObj.append('inspectionPdf', inspectionFile);
                 if (avtotekaFile) formDataObj.append('avtotekaPdf', avtotekaFile);
 
-                const uploadRes = await fetch('http://81.26.184.131:80/api/upload', {
+                const uploadRes = await fetch('/api/upload', {
                     method: 'POST',
                     body: formDataObj
                 });
@@ -1848,7 +1848,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 avtotekaPdf: uploadedAvtoteka
             };
 
-            const response = await fetch('http://81.26.184.131:80/api/lots', {
+            const response = await fetch('/api/lots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(lotDataToSubmit)
@@ -1944,8 +1944,8 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                                         <td className="py-4 px-4 font-bold text-blue-600">{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
                                         <td className="py-4 px-4">
                                             <div className="flex flex-col gap-1 text-sm">
-                                                {user.companyPdf ? <a href={`http://81.26.184.131:80${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
-                                                {user.passportPdf ? <a href={`http://81.26.184.131:80${user.passportPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><User size={14}/> Паспорт ФЛ</a> : <span className="text-slate-400 text-xs">ФЛ: Нет</span>}
+                                                {user.companyPdf ? <a href={`${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
+                                                {user.passportPdf ? <a href={`${user.passportPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><User size={14}/> Паспорт ФЛ</a> : <span className="text-slate-400 text-xs">ФЛ: Нет</span>}
                                             </div>
                                         </td>
                                         <td className="py-4 px-4">
