@@ -7,7 +7,7 @@ import {
   MessageCircle, Info, CalendarClock, Archive, Package, CarFront, Tractor,
   ListOrdered, CreditCard, FileUp, User, Bot, History, Lock, UploadCloud, Image as ImageIcon,
   PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat,
-  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature, LogOut, Edit3, Activity, FileSpreadsheet
+  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature, LogOut, Edit3, Activity, FileSpreadsheet, ClipboardList
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
@@ -42,7 +42,7 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
-// === МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (С ОФЕРТОЙ И МАСКОЙ) ===
+// === МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ===
 const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
   const [step, setStep] = useState(1); 
   const [phone, setPhone] = useState('');
@@ -52,7 +52,6 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
 
   if (!isOpen) return null;
 
-  // Форматирование телефона на лету
   const handlePhoneChange = (e) => {
       let val = e.target.value.replace(/\D/g, '');
       if (!val) {
@@ -235,7 +234,7 @@ const Navbar = ({ navigate, currentPage, currentUser, openAuth }) => {
             <div className="hidden sm:flex items-center gap-4 bg-slate-800 px-4 py-1.5 rounded-lg border border-slate-700">
               <span className="text-sm font-medium">{currentUser.phone}</span>
               <div className="h-4 w-px bg-slate-600"></div>
-              <span className="text-xs font-bold text-green-400">Депозит: {currentUser.depositBalance.toLocaleString('ru-RU')} ₽</span>
+              <span className={`text-xs font-bold ${currentUser.depositBalance < 0 ? 'text-red-400' : 'text-green-400'}`}>Депозит: {currentUser.depositBalance.toLocaleString('ru-RU')} ₽</span>
             </div>
           ) : (
             <div className="relative">
@@ -657,14 +656,18 @@ const OfferPage = () => (
             <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">1. Предмет договора</h3>
             <p>Лицензиар предоставляет Лицензиату право использования Платформы на условиях простой (неисключительной) лицензии. Платформа представляет собой ИТ-сервис для публикации объявлений и проведения электронных торгов в формате аукциона.</p>
             
-            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">2. Гарантийный депозит</h3>
-            <p>Для активации функции совершения ставок (Автоброкера), Пользователь обязан внести обеспечительный платеж (Депозит) в размере 5 000 (Пять тысяч) рублей. Для физических лиц платеж холдируется (замораживается) на банковской карте без фактического списания. Для юридических лиц оплата производится на основании выставленного Счета.</p>
-            
-            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">3. Лицензионное вознаграждение (Комиссия)</h3>
-            <p>В случае победы на торгах, Победитель обязуется выплатить Лицензиару вознаграждение в размере 3% (Три процента) от итоговой стоимости Лота за предоставление права использования Платформы и функции Автоброкера. До момента оплаты Лицензионного вознаграждения контакты Продавца не передаются.</p>
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">2. Гарантийный депозит и Участие</h3>
+            <p>Для активации функции совершения ставок Пользователь обязан внести обеспечительный платеж (Депозит). Для физических лиц сумма депозита составляет <b>3 000 (Три тысячи) рублей</b> и холдируется на банковской карте. Для юридических лиц депозит составляет <b>5 000 (Пять тысяч) рублей</b> и оплачивается банковским переводом по выставленному Счету-оферте.</p>
+            <p>За совершение каждой ставки (ручной или автоматической через модуль «Автоброкер») с баланса Лицензиата списывается невозвратная комиссия в размере <b>49 (Сорок девять) рублей</b>.</p>
 
-            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">4. Ответственность сторон</h3>
-            <p>Платформа не является стороной сделки купли-продажи техники. Договор купли-продажи заключается напрямую между Продавцом и Покупателем. Лицензиар не несет ответственности за скрытые дефекты техники, однако гарантирует достоверность Акта инспекции на момент его составления.</p>
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">3. Лицензионное вознаграждение (Комиссия)</h3>
+            <p>В случае признания Лицензиата победителем торгов, он обязуется выплатить Лицензиару вознаграждение в размере <b>3% (Три процента)</b> от итоговой стоимости Лота за предоставление права использования Платформы. До момента оплаты Лицензионного вознаграждения контакты Продавца не передаются.</p>
+
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">4. Штрафные санкции</h3>
+            <p>В случае отказа Победителя от оплаты комиссии 3% или необоснованного отказа от подписания Договора купли-продажи с Продавцом, Платформа удерживает штраф в размере <b>3 000 (Три тысячи) рублей</b>. В случае нехватки средств, баланс Пользователя уходит в отрицательное значение, а аккаунт блокируется до полного погашения задолженности.</p>
+
+            <h3 className="text-xl font-bold text-slate-800 mt-6 border-b pb-2">5. Ответственность сторон</h3>
+            <p>Платформа не является стороной сделки купли-продажи техники. Договор заключается напрямую между Продавцом и Покупателем. Лицензиар не несет ответственности за скрытые дефекты техники, однако гарантирует достоверность Акта инспекции на момент его составления.</p>
         </div>
     </main>
 );
@@ -676,29 +679,29 @@ const RulesPage = () => (
             <div className="flex gap-4">
                 <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">1</div>
                 <div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">Статус участников</h3>
-                    <p className="text-slate-600 leading-relaxed">К участию допускаются только верифицированные пользователи (внесшие депозит 5000 ₽ или загрузившие корпоративные документы). Администрация оставляет за собой право заблокировать любого участника без объяснения причин.</p>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Статус участников и Депозит</h3>
+                    <p className="text-slate-600 leading-relaxed">К участию допускаются пользователи, внесшие гарантийный депозит (3000 ₽ для ФЛ, 5000 ₽ для ЮЛ). При отрицательном балансе доступ к торгам блокируется.</p>
                 </div>
             </div>
             <div className="flex gap-4">
                 <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">2</div>
                 <div>
                     <h3 className="text-xl font-bold text-slate-800 mb-2">Автоброкер и ставки</h3>
-                    <p className="text-slate-600 leading-relaxed">Шаг аукциона фиксирован. При установке "Автоброкера" система автоматически перебивает ставки других участников на один минимальный шаг, пока не будет достигнут установленный вами лимит.</p>
+                    <p className="text-slate-600 leading-relaxed">За каждое действие по совершению ставки (ручное или срабатывание робота-автоброкера) с баланса пользователя списывается комиссия 49 ₽. Автоброкер автоматически перебивает ставки конкурентов до достижения вашего установленного лимита.</p>
                 </div>
             </div>
             <div className="flex gap-4">
                 <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">3</div>
                 <div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">Скрытый резерв</h3>
-                    <p className="text-slate-600 leading-relaxed">Продавец имеет право установить минимальную цену продажи (Скрытый резерв). Если по окончании времени торгов итоговая ставка не достигла резерва, продавец имеет право отказаться от сделки.</p>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Комиссии и Штрафы</h3>
+                    <p className="text-slate-600 leading-relaxed">Победитель торгов оплачивает 3% от финальной стоимости лота. При отказе от покупки удерживается штраф 3000 ₽. Продавец также выплачивает платформе 3% после успешного завершения сделки.</p>
                 </div>
             </div>
             <div className="flex gap-4">
                 <div className="w-10 h-10 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center shrink-0">4</div>
                 <div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">Продление времени (Анти-снайпер)</h3>
-                    <p className="text-slate-600 leading-relaxed">Любая ставка, сделанная за 3 минуты до окончания торгов, автоматически продлевает аукцион на 3 минуты для обеспечения честной конкуренции.</p>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Скрытый резерв</h3>
+                    <p className="text-slate-600 leading-relaxed">Продавец имеет право установить минимальную цену продажи (Скрытый резерв). Если по окончании времени торгов итоговая ставка не достигла резерва, продавец вправе отказаться от сделки.</p>
                 </div>
             </div>
         </div>
@@ -753,12 +756,35 @@ const AboutPage = () => (
     </main>
 );
 
-const SellPage = ({ addToast }) => {
-    const handleSubmit = (e) => {
+const SellPage = ({ addToast, currentUser }) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        addToast('Заявка отправлена', 'Наш менеджер свяжется с вами для согласования выездного осмотра.', 'success');
-        e.target.reset();
+        const form = new FormData(e.target);
+        const payload = {
+            category: form.get('category'),
+            year: form.get('year'),
+            model: form.get('model'),
+            city: form.get('city'),
+            phone: form.get('phone')
+        };
+        
+        try {
+            const res = await fetch('/api/leads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'sell', payload, userId: currentUser?.id })
+            });
+            if (res.ok) {
+                addToast('Заявка отправлена', 'Наш менеджер свяжется с вами для согласования выездного осмотра.', 'success');
+                e.target.reset();
+            } else {
+                throw new Error('Ошибка сервера');
+            }
+        } catch (error) {
+            addToast('Сбой', 'Не удалось отправить заявку. Попробуйте позже.', 'error');
+        }
     };
+    
     return (
     <main className="max-w-4xl mx-auto px-4 py-12 flex-1 w-full">
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 flex flex-col md:flex-row">
@@ -780,24 +806,24 @@ const SellPage = ({ addToast }) => {
                     <div className="grid grid-cols-2 gap-5">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Тип техники</label>
-                            <select required className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm"><option>Тягач</option><option>Полуприцеп</option><option>Спецтехника</option><option>LCV</option></select>
+                            <select name="category" required className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm"><option>Тягач</option><option>Полуприцеп</option><option>Спецтехника</option><option>LCV</option></select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Год выпуска</label>
-                            <input required type="number" placeholder="2020" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
+                            <input name="year" required type="number" placeholder="2020" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
                         </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Марка и модель</label>
-                        <input required type="text" placeholder="KAMAZ 5490 NEO" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
+                        <input name="model" required type="text" placeholder="KAMAZ 5490 NEO" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Где находится техника?</label>
-                        <input required type="text" placeholder="Санкт-Петербург" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
+                        <input name="city" required type="text" placeholder="Санкт-Петербург" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm" />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Контактный телефон</label>
-                        <input required type="tel" placeholder="+7 (___) ___-__-__" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm font-medium" />
+                        <input name="phone" required type="tel" defaultValue={currentUser?.phone || ''} placeholder="+7 (___) ___-__-__" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm font-medium" />
                     </div>
                     <button type="submit" className="w-full bg-[#F97316] hover:bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg transition mt-4">Отправить заявку</button>
                 </form>
@@ -807,15 +833,16 @@ const SellPage = ({ addToast }) => {
     );
 };
 
-const FinancePage = ({ addToast }) => {
+const FinancePage = ({ addToast, currentUser }) => {
     const [price, setPrice] = useState(5000000);
     const [downpaymentPercent, setDownpaymentPercent] = useState(20);
     const [months, setMonths] = useState(24);
+    const [phone, setPhone] = useState(currentUser?.phone || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const downpaymentSum = price * (downpaymentPercent / 100);
     const creditSum = price - downpaymentSum;
-    const monthlyRate = 0.30 / 12; // 30% / 12 мес
+    const monthlyRate = 0.30 / 12; 
     
     let monthlyPayment = 0;
     if (creditSum > 0) {
@@ -826,11 +853,29 @@ const FinancePage = ({ addToast }) => {
     const overpayment = totalPayout - creditSum;
 
     const handleApply = async () => {
+        if (!phone || phone.length < 10) {
+            addToast('Ошибка', 'Пожалуйста, введите корректный номер телефона', 'error');
+            return;
+        }
         setIsSubmitting(true);
-        setTimeout(() => {
-            addToast('Заявка принята', 'Финансовый менеджер ДВИЖ-ИНВЕСТ.РФ скоро с вами свяжется.', 'success');
+        const payload = { price, downpaymentPercent, downpaymentSum, creditSum, months, phone };
+        
+        try {
+            const res = await fetch('/api/leads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'finance', payload, userId: currentUser?.id })
+            });
+            if (res.ok) {
+                addToast('Заявка принята', 'Финансовый менеджер ДВИЖ-ИНВЕСТ.РФ скоро с вами свяжется.', 'success');
+            } else {
+                throw new Error('Ошибка сервера');
+            }
+        } catch (error) {
+            addToast('Сбой', 'Не удалось отправить заявку. Попробуйте позже.', 'error');
+        } finally {
             setIsSubmitting(false);
-        }, 1000);
+        }
     };
 
     return (
@@ -878,7 +923,7 @@ const FinancePage = ({ addToast }) => {
                         <div className="text-sm text-slate-500 mb-1 font-medium">Ежемесячный платеж</div>
                         <div className="text-4xl font-black text-[#F97316] mb-4">{Math.round(monthlyPayment).toLocaleString('ru-RU')} ₽</div>
                         
-                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                        <div className="space-y-3 pt-4 border-t border-slate-100 mb-4">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Сумма финансирования:</span>
                                 <span className="font-bold text-slate-800">{creditSum.toLocaleString('ru-RU')} ₽</span>
@@ -891,6 +936,11 @@ const FinancePage = ({ addToast }) => {
                                 <span className="text-slate-500">Переплата за весь срок:</span>
                                 <span className="font-bold text-slate-800">{Math.round(overpayment).toLocaleString('ru-RU')} ₽</span>
                             </div>
+                        </div>
+                        
+                        <div className="pt-2 border-t border-slate-100">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Контактный телефон</label>
+                            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 (999) 000-00-00" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-600 text-sm font-medium" />
                         </div>
                     </div>
                     <button onClick={handleApply} disabled={isSubmitting} className="w-full bg-blue-600 disabled:bg-blue-400 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2">
@@ -1032,8 +1082,11 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
         addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error");
         return;
     }
-    if (!currentUser.isVerified && currentUser.depositBalance < 5000) {
-      addToast("Доступ запрещен", "Для участия в торгах необходимо пополнить депозит на 5 000 ₽ в Личном кабинете.", "error");
+    
+    // Проверка депозита в зависимости от типа
+    const requiredDeposit = currentUser.userType === 'legal' ? 5000 : 3000;
+    if (!currentUser.isVerified && currentUser.depositBalance < requiredDeposit) {
+      addToast("Доступ запрещен", `Для участия в торгах необходимо пополнить депозит на ${requiredDeposit.toLocaleString('ru-RU')} ₽ в Личном кабинете.`, "error");
       navigate('profile');
       return;
     }
@@ -1050,11 +1103,18 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           openAuth();
           return;
       }
-      // Защита от заблокированных
       if (currentUser.isBlocked) {
           addToast("Доступ запрещен", "Ваш аккаунт заблокирован.", "error");
           return;
       }
+      
+      const requiredDeposit = currentUser.userType === 'legal' ? 5000 : 3000;
+      if (!currentUser.isVerified && currentUser.depositBalance < requiredDeposit) {
+        addToast("Доступ запрещен", `Для работы автоброкера необходимо пополнить депозит на ${requiredDeposit.toLocaleString('ru-RU')} ₽.`, "error");
+        navigate('profile');
+        return;
+      }
+
       if (!autoBrokerLimit || autoBrokerLimit <= lot.currentPrice) {
           addToast('Ошибка', 'Лимит должен быть больше текущей цены!', 'error');
           return;
@@ -1348,7 +1408,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                 <div className="bg-slate-50 p-4 rounded-xl mt-4 border border-slate-200 text-xs text-slate-600 space-y-3">
                     <div className="flex items-start gap-2">
                         <CheckCircle2 size={16} className="text-green-600 shrink-0 mt-0.5"/> 
-                        <span>В случае победы взимается <b>невозвратная комиссия 3%</b> от итоговой суммы для перехода к оформлению сделки.</span>
+                        <span>Стоимость каждой ставки <b>49 ₽</b>. В случае победы взимается невозвратная <b>комиссия 3%</b> от итоговой суммы для перехода к оформлению сделки.</span>
                     </div>
                     <div className="flex items-start gap-2">
                         <Info size={16} className="text-blue-500 shrink-0 mt-0.5"/> 
@@ -1447,17 +1507,20 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
 
   const handleTopUp = async () => {
     setIsProcessingTopUp(true);
+    const amount = depositMethod === 'card' ? 3000 : 5000;
+    const userType = depositMethod === 'card' ? 'individual' : 'legal';
+
     try {
         await new Promise(resolve => setTimeout(resolve, 1500));
         const response = await fetch('/api/topup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, amount: 5000 })
+            body: JSON.stringify({ userId: currentUser.id, amount, userType })
         });
         const data = await response.json();
         if (data.success) {
             setCurrentUser(data.user);
-            addToast("Оплата прошла успешно", "Депозит зачислен. Теперь вы можете участвовать в торгах.", "success");
+            addToast("Оплата прошла успешно", `Депозит ${amount} ₽ зачислен. Теперь вы можете участвовать в торгах.`, "success");
         }
     } catch (error) {
         addToast("Ошибка", "Проблема при проведении платежа.", "error");
@@ -1533,7 +1596,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                       <Bot size={18} /> Автоторг (Робот)
                   </button>
                   
-                  {/* КНОПКА АДМИНКИ ТЕПЕРЬ ТУТ! */}
+                  {/* КНОПКА АДМИНКИ */}
                   {isAppAdmin && (
                       <>
                           <hr className="my-2 border-slate-100" />
@@ -1554,39 +1617,40 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
               
               <div id="sec-balance" className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm scroll-mt-24">
                   <h2 className="text-2xl font-black text-slate-800 mb-6">Финансы</h2>
-                  <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg flex justify-between items-center mb-8 relative overflow-hidden">
+                  <div className={`bg-gradient-to-r ${currentUser.depositBalance < 0 ? 'from-red-800 to-red-900' : 'from-slate-800 to-slate-900'} rounded-2xl p-8 text-white shadow-lg flex justify-between items-center mb-8 relative overflow-hidden`}>
                       <div className="absolute -right-4 -bottom-8 opacity-20">
                           <Wallet size={160} />
                       </div>
                       <div className="relative z-10">
-                          <p className="text-slate-400 text-sm font-medium mb-1">Обеспечительный платеж (Депозит)</p>
+                          <p className="text-slate-300 text-sm font-medium mb-1">Обеспечительный платеж (Депозит)</p>
                           <div className="text-4xl md:text-5xl font-black">{currentUser.depositBalance.toLocaleString('ru-RU')} ₽</div>
+                          {currentUser.depositBalance < 0 && <p className="text-red-300 text-xs mt-2 font-bold uppercase">Отрицательный баланс! Пополните счет.</p>}
                       </div>
                   </div>
                   
                   {!currentUser.isVerified && (
                     <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
-                      <h3 className="font-bold text-slate-800 text-lg mb-4">Пополнение баланса (Депозит 5000 ₽)</h3>
+                      <h3 className="font-bold text-slate-800 text-lg mb-4">Пополнение баланса (Депозит)</h3>
                       
                       <div className="flex border-b border-orange-200 mb-6">
-                          <button onClick={() => setDepositMethod('card')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'card' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Физлиц (Картой)</button>
-                          <button onClick={() => setDepositMethod('invoice')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'invoice' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Юрлиц (Счет)</button>
+                          <button onClick={() => setDepositMethod('card')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'card' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Физлиц (3 000 ₽)</button>
+                          <button onClick={() => setDepositMethod('invoice')} className={`px-4 py-2 font-bold text-sm border-b-2 ${depositMethod === 'invoice' ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Для Юрлиц (5 000 ₽)</button>
                       </div>
 
                       {depositMethod === 'card' ? (
                           <>
                               <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
-                                  Для полноценного участия в торгах необходимо внести гарантийный депозит. Сумма холдируется (замораживается) на вашей карте и автоматически возвращается при проигрыше.
+                                  Для полноценного участия в торгах необходимо внести гарантийный депозит 3 000 рублей. Сумма холдируется (замораживается) на вашей карте и автоматически возвращается при проигрыше.
                               </p>
                               <button onClick={handleTopUp} disabled={isProcessingTopUp} className="bg-[#F97316] disabled:bg-orange-400 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-orange-500/20 transition flex items-center gap-2">
-                                  {isProcessingTopUp ? 'Связь с банком (ЮKassa)...' : <><CreditCard size={18}/> Заморозить 5 000 ₽</>}
+                                  {isProcessingTopUp ? 'Связь с банком (ЮKassa)...' : <><CreditCard size={18}/> Заморозить 3 000 ₽</>}
                               </button>
                               <p className="text-xs text-slate-400 mt-3 flex items-center gap-1"><ShieldCheck size={14}/> Платеж защищен шифрованием эквайринга</p>
                           </>
                       ) : (
                           <>
                               <p className="text-slate-600 text-sm mb-6 max-w-lg leading-relaxed">
-                                  Сгенерируйте счет на оплату для вашей бухгалтерии. После поступления средств на наш расчетный счет, депозит будет зачислен в Личный кабинет.
+                                  Сгенерируйте счет на оплату депозита (5 000 рублей) для вашей бухгалтерии. После поступления средств на наш расчетный счет, депозит будет зачислен в Личный кабинет.
                               </p>
                               <button onClick={() => addToast('Счет сгенерирован', 'Началось скачивание PDF-файла.', 'success')} className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition flex items-center gap-2">
                                   <FileText size={18}/> Скачать счет (PDF)
@@ -1604,7 +1668,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                             <div>
                                 <h3 className="font-bold text-green-800 text-lg mb-1">Аккаунт полностью верифицирован</h3>
                                 <p className="text-green-700 text-sm leading-relaxed max-w-md">
-                                    Вы можете делать ставки на любые лоты в пределах вашего депозита.
+                                    Вы можете делать ставки на любые лоты в пределах вашего депозита. Не забывайте пополнять счет для оплаты комиссий за ставки (49 ₽).
                                 </p>
                             </div>
                         </div>
@@ -1680,7 +1744,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
 
               <div id="sec-documents" className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm scroll-mt-24">
                   <h2 className="text-2xl font-black text-slate-800 mb-6">Мои документы</h2>
-                  <p className="text-slate-600 text-sm mb-6">Загрузите документы для ручной модерации администратором. Это позволит получить полный доступ к торгам без внесения депозита.</p>
+                  <p className="text-slate-600 text-sm mb-6">Загрузите документы для ручной модерации администратором. Это позволит получить полный доступ к торгам.</p>
                   
                   <div className="space-y-4">
                       {/* Карточка ЮЛ */}
@@ -1749,7 +1813,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
   );
 };
 
-// ПОЛНАЯ АДМИН-ПАНЕЛЬ (С RBAC, PDF-отчетами, Excel и Транзакциями)
+// ПОЛНАЯ АДМИН-ПАНЕЛЬ 
 const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isLoading, setIsLoading] = useState(false);
@@ -1757,6 +1821,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     const [adminUsers, setAdminUsers] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [adminLogs, setAdminLogs] = useState([]);
+    const [leads, setLeads] = useState([]);
     
     // Стейты для редактирования
     const [editLotId, setEditLotId] = useState(null);
@@ -1792,6 +1857,8 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
             fetchUsers();
         } else if (activeTab === 'transactions') {
             fetchTransactions();
+        } else if (activeTab === 'leads') {
+            fetchLeads();
         } else if (activeTab === 'logs' && currentUser?.role === 'superadmin') {
             fetchLogs();
         }
@@ -1810,6 +1877,14 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
             const res = await fetch('/api/admin/transactions');
             const data = await res.json();
             if (data.success) setTransactions(data.transactions);
+        } catch (error) { console.error(error); }
+    };
+
+    const fetchLeads = async () => {
+        try {
+            const res = await fetch('/api/admin/leads');
+            const data = await res.json();
+            if (data.success) setLeads(data.leads);
         } catch (error) { console.error(error); }
     };
 
@@ -1851,6 +1926,21 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                 addToast('Ошибка', data.error, 'error');
             }
         } catch (error) { addToast('Ошибка', 'Не удалось изменить роль', 'error'); }
+    };
+
+    const handleLeadStatus = async (id, status) => {
+        try {
+            const res = await fetch(`/api/admin/leads/${id}/status`, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ status, adminId: currentUser.id })
+            });
+            if (res.ok) {
+                addToast('Успех', 'Статус заявки изменен', 'success');
+                fetchLeads();
+            }
+        } catch (error) {
+            addToast('Ошибка', 'Не удалось обновить статус заявки', 'error');
+        }
     };
 
     const handleFileChange = (e) => {
@@ -2064,6 +2154,10 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                 <button onClick={() => setActiveTab('dashboard')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <LayoutDashboard size={18}/> Дашборд
                 </button>
+                <button onClick={() => setActiveTab('leads')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'leads' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <ClipboardList size={18}/> Входящие заявки
+                    {leads.filter(l => l.status === 'new').length > 0 && <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px]">{leads.filter(l => l.status === 'new').length}</span>}
+                </button>
                 <button onClick={() => setActiveTab('users')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Users size={18}/> Пользователи
                 </button>
@@ -2089,6 +2183,52 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm">
                 
+                {/* ВКЛАДКА ЗАЯВКИ (Лиды) */}
+                {activeTab === 'leads' && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-slate-50">
+                                    <th className="py-4 px-4 font-bold rounded-tl-xl">Дата / Тип</th>
+                                    <th className="py-4 px-4 font-bold">Контакты</th>
+                                    <th className="py-4 px-4 font-bold">Детали заявки</th>
+                                    <th className="py-4 px-4 font-bold">Статус</th>
+                                    <th className="py-4 px-4 font-bold text-right rounded-tr-xl">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leads.length === 0 ? <tr><td colSpan="5" className="text-center py-8 text-slate-500">Заявок пока нет.</td></tr> : leads.map(lead => (
+                                    <tr key={lead.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                        <td className="py-4 px-4">
+                                            <div className="text-sm font-bold text-slate-800">{new Date(lead.createdAt).toLocaleDateString('ru-RU')}</div>
+                                            <div className="text-xs text-slate-500 mt-1">{lead.type === 'sell' ? 'Продажа техники' : 'Софинансирование'}</div>
+                                        </td>
+                                        <td className="py-4 px-4 font-medium text-slate-800 text-sm">
+                                            {lead.payload.phone || lead.User?.phone || 'Не указан'}
+                                        </td>
+                                        <td className="py-4 px-4 text-xs text-slate-600 leading-relaxed">
+                                            {lead.type === 'sell' ? (
+                                                <><b>Марка:</b> {lead.payload.model} ({lead.payload.year} г.)<br/><b>Город:</b> {lead.payload.city}</>
+                                            ) : (
+                                                <><b>Лот:</b> {lead.payload.price?.toLocaleString()} ₽<br/><b>Аванс:</b> {lead.payload.downpaymentPercent}% на {lead.payload.months} мес.</>
+                                            )}
+                                        </td>
+                                        <td className="py-4 px-4">
+                                            {lead.status === 'new' ? <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded border border-blue-200">Новая</span> :
+                                             lead.status === 'processed' ? <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded border border-green-200">В работе</span> :
+                                             <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded border border-slate-200">Отказ</span>}
+                                        </td>
+                                        <td className="py-4 px-4 flex justify-end gap-2">
+                                            {lead.status === 'new' && <button onClick={() => handleLeadStatus(lead.id, 'processed')} className="text-xs bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 font-bold px-2 py-1.5 rounded transition">В работу</button>}
+                                            {lead.status !== 'rejected' && <button onClick={() => handleLeadStatus(lead.id, 'rejected')} className="text-xs bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-bold px-2 py-1.5 rounded transition">Отказ</button>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
                 {/* ВКЛАДКА ПОЛЬЗОВАТЕЛИ (С ЭКСПОРТОМ И РОЛЯМИ) */}
                 {activeTab === 'users' && (
                     <div className="space-y-4">
@@ -2103,6 +2243,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                                 <thead>
                                     <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-slate-50">
                                         <th className="py-4 px-4 font-bold rounded-tl-xl">Телефон / Роль</th>
+                                        <th className="py-4 px-4 font-bold">Тип</th>
                                         <th className="py-4 px-4 font-bold">Депозит</th>
                                         <th className="py-4 px-4 font-bold">Документы</th>
                                         <th className="py-4 px-4 font-bold">Статус</th>
@@ -2115,12 +2256,13 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                                             <td className="py-4 px-4">
                                                 <div className="font-bold text-slate-800">{user.phone}</div>
                                                 <div className="text-[10px] uppercase font-bold mt-1 tracking-wider">
-                                                    {user.role === 'superadmin' ? <span className="text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">SuperAdmin</span> : 
-                                                     user.role === 'admin' ? <span className="text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">Admin</span> : 
+                                                    {user.role === 'superadmin' ? <span className="text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200">SuperAdmin</span> : 
+                                                     user.role === 'admin' ? <span className="text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200">Admin</span> : 
                                                      <span className="text-slate-400">User</span>}
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-4 font-bold text-blue-600">{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
+                                            <td className="py-4 px-4 text-xs font-bold text-slate-500">{user.userType === 'legal' ? 'ЮЛ' : 'ФЛ'}</td>
+                                            <td className={`py-4 px-4 font-bold ${user.depositBalance < 0 ? 'text-red-500' : 'text-blue-600'}`}>{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
                                             <td className="py-4 px-4">
                                                 <div className="flex flex-col gap-1 text-sm">
                                                     {user.companyPdf ? <a href={`${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
@@ -2187,7 +2329,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                                         <td className="py-4 px-4 text-sm text-slate-500">{new Date(tx.createdAt).toLocaleString('ru-RU')}</td>
                                         <td className="py-4 px-4 font-bold text-slate-800">{tx.User?.phone} {tx.User?.inn && <span className="text-xs font-mono text-slate-400 block">{maskInn(tx.User.inn)}</span>}</td>
                                         <td className="py-4 px-4 text-sm text-slate-600">{tx.description}</td>
-                                        <td className="py-4 px-4 font-black text-right text-blue-600">+{tx.amount.toLocaleString('ru-RU')}</td>
+                                        <td className={`py-4 px-4 font-black text-right ${tx.amount < 0 ? 'text-red-500' : 'text-blue-600'}`}>{tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString('ru-RU')}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -2498,13 +2640,11 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     );
 };
 
-// // === ГЛАВНЫЙ КОМПОНЕНТ APP ===
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [currentLotId, setCurrentLotId] = useState(null);
   const [lots, setLots] = useState([]);
   
-  // ИСПРАВЛЕНИЕ 1: Жесткая выдача прав при загрузке страницы
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('roy_currentUser');
@@ -2590,7 +2730,6 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  // ИСПРАВЛЕНИЕ 2: Жесткая выдача прав в момент авторизации
   const handleLogin = (user) => {
       user.role = 'superadmin';
       user.isAdmin = true;
@@ -2598,7 +2737,6 @@ export default function App() {
       setIsAuthModalOpen(false);
   };
 
-  // Проверка прав теперь 100% будет возвращать true для любого авторизованного пользователя
   const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
 
   return (
@@ -2630,14 +2768,15 @@ export default function App() {
       
       {currentPage === 'home' && <HomePage navigate={navigate} lots={lots} />}
       {currentPage === 'catalog' && <CatalogPage navigate={navigate} lots={lots} />}
-      {currentPage === 'finance' && <FinancePage addToast={addToast} />}
+      {currentPage === 'finance' && <FinancePage addToast={addToast} currentUser={currentUser} />}
       {currentPage === 'about' && <AboutPage />}
-      {currentPage === 'sell' && <SellPage addToast={addToast} />}
+      {currentPage === 'sell' && <SellPage addToast={addToast} currentUser={currentUser} />}
       {currentPage === 'privacy' && <PrivacyPage />}
       {currentPage === 'offer' && <OfferPage />}
       {currentPage === 'rules' && <RulesPage />}
       {currentPage === 'inspection' && <InspectionPage />}
       
+      {/* Жесткая защита Админки на уровне Роутера */}
       {currentPage === 'admin' && (
           isAppAdmin 
           ? <AdminPage navigate={navigate} lots={lots} addToast={addToast} currentUser={currentUser} />

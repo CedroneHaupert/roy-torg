@@ -58,13 +58,13 @@ if (process.env.NODE_ENV === 'production') {
 const User = sequelize.define('User', {
     phone: { type: DataTypes.STRING, unique: true, allowNull: false },
     inn: { type: DataTypes.STRING, allowNull: true },
-    depositBalance: { type: DataTypes.INTEGER, defaultValue: 0 },
+    depositBalance: { type: DataTypes.INTEGER, defaultValue: 0 }, // Может быть отрицательным
     isVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false },
     passportPdf: { type: DataTypes.STRING, defaultValue: '' },
     companyPdf: { type: DataTypes.STRING, defaultValue: '' },
-    // НОВАЯ РОЛЕВАЯ СИСТЕМА: 'user', 'admin', 'superadmin'
-    role: { type: DataTypes.STRING, defaultValue: 'user' }
+    role: { type: DataTypes.STRING, defaultValue: 'user' }, // 'user', 'admin', 'superadmin'
+    userType: { type: DataTypes.STRING, defaultValue: 'individual' } // 'individual' (ФЛ), 'legal' (ЮЛ)
 });
 
 const Lot = sequelize.define('Lot', {
@@ -102,17 +102,22 @@ const AutoBid = sequelize.define('AutoBid', {
     maxAmount: { type: DataTypes.INTEGER, allowNull: false }
 });
 
-// НОВАЯ МОДЕЛЬ: Логирование действий администраторов
 const AdminLog = sequelize.define('AdminLog', {
     action: { type: DataTypes.STRING, allowNull: false },
     details: { type: DataTypes.TEXT, allowNull: true }
 });
 
-// НОВАЯ МОДЕЛЬ: Финансовые транзакции пользователей (пополнения, списания, комиссии)
 const Transaction = sequelize.define('Transaction', {
-    type: { type: DataTypes.STRING, allowNull: false }, // 'topup', 'withdraw', 'commission', 'penalty'
+    type: { type: DataTypes.STRING, allowNull: false }, // 'topup', 'withdraw', 'commission', 'penalty', 'bid_fee'
     amount: { type: DataTypes.INTEGER, allowNull: false },
     description: { type: DataTypes.STRING, allowNull: true }
+});
+
+// НОВАЯ МОДЕЛЬ: Заявки (Лиды) с сайта
+const Lead = sequelize.define('Lead', {
+    type: { type: DataTypes.STRING, allowNull: false }, // 'sell' (Продажа), 'finance' (Софинансирование)
+    payload: { type: DataTypes.JSON, allowNull: false }, // Данные из формы (марка, год, контакты и тд)
+    status: { type: DataTypes.STRING, defaultValue: 'new' }, // 'new', 'processed', 'rejected'
 });
 
 // Связи БД
@@ -132,6 +137,8 @@ AdminLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 User.hasMany(Transaction);
 Transaction.belongsTo(User);
 
+User.hasMany(Lead);
+Lead.belongsTo(User); // Пользователь может оставлять заявки
 
 const smsCodes = new Map();
 
@@ -247,7 +254,7 @@ app.post('/api/auth/verify', async (req, res) => {
     try {
         const [user, created] = await User.findOrCreate({
             where: { phone },
-            defaults: { depositBalance: 0, isVerified: false, isBlocked: false, role: 'user' }
+            defaults: { depositBalance: 0, isVerified: false, isBlocked: false, role: 'user', userType: 'individual' }
         });
 
         // 👑 СУПЕРАДМИН (Назначается автоматически при входе с этого номера)
@@ -270,24 +277,45 @@ app.post('/api/auth/verify', async (req, res) => {
     }
 });
 
-// ПОПОЛНЕНИЕ БАЛАНСА
+// ПОПОЛНЕНИЕ БАЛАНСА И СТАТУСЫ (3000 для ФЛ, 5000 для ЮЛ)
 app.post('/api/topup', async (req, res) => {
     try {
-        const { userId, amount } = req.body;
+        const { userId, amount, userType } = req.body;
         const user = await User.findByPk(userId);
         if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
         if (user.isBlocked) return res.status(403).json({ error: 'Действие запрещено. Аккаунт заблокирован.' });
 
+        if (userType) user.userType = userType; // Обновляем тип пользователя при оплате
+        
         user.depositBalance += Number(amount);
-        if (user.depositBalance >= 5000) user.isVerified = true;
+        
+        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+        if (user.depositBalance >= requiredDeposit) user.isVerified = true;
+        
         await user.save();
 
-        await recordTransaction(user.id, 'topup', Number(amount), 'Пополнение обеспечительного платежа (Холдирование / Банковский перевод)');
+        await recordTransaction(user.id, 'topup', Number(amount), `Пополнение депозита (${user.userType === 'legal' ? 'ЮЛ' : 'ФЛ'})`);
 
         res.json({ success: true, user });
     } catch (error) {
         console.error('Ошибка пополнения:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// НОВЫЙ РОУТ: СОЗДАНИЕ ЗАЯВКИ (Лида) с сайта (Форма продажи / Софинансирование)
+app.post('/api/leads', async (req, res) => {
+    try {
+        const { type, payload, userId } = req.body;
+        const lead = await Lead.create({ 
+            type, 
+            payload, 
+            UserId: userId || null 
+        });
+        res.json({ success: true, lead });
+    } catch (error) {
+        console.error('Ошибка создания лида:', error);
+        res.status(500).json({ error: 'Ошибка сервера при сохранении заявки' });
     }
 });
 
@@ -306,6 +334,62 @@ app.get('/api/user/:userId/bids', async (req, res) => {
 // ==========================================
 // 🛡️ АДМИНСКИЕ РОУТЫ (RBAC + ЛОГИРОВАНИЕ)
 // ==========================================
+
+// ПОЛУЧЕНИЕ ВСЕХ ЗАЯВОК (Для админки)
+app.get('/api/admin/leads', async (req, res) => {
+    try {
+        const leads = await Lead.findAll({
+            include: [{ model: User, attributes: ['phone', 'userType'] }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json({ success: true, leads });
+    } catch (error) {
+        res.status(500).json({ error: 'Ошибка получения заявок' });
+    }
+});
+
+// ОБНОВЛЕНИЕ СТАТУСА ЗАЯВКИ
+app.patch('/api/admin/leads/:id/status', async (req, res) => {
+    try {
+        const { status, adminId } = req.body;
+        const lead = await Lead.findByPk(req.params.id);
+        if (!lead) return res.status(404).json({ error: 'Заявка не найдена' });
+
+        lead.status = status;
+        await lead.save();
+        await logAdminAction(adminId, 'UPDATE_LEAD', `Обновлен статус заявки #${lead.id} на ${status}`);
+
+        res.json({ success: true, lead });
+    } catch (error) {
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// ШТРАФ ПОЛЬЗОВАТЕЛЯ (Отказ от покупки)
+app.post('/api/admin/users/:id/penalty', async (req, res) => {
+    try {
+        const { adminId, amount = 3000, reason } = req.body;
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+
+        user.depositBalance -= Number(amount);
+        
+        // Если баланс ушел ниже требуемого порога, снимаем верификацию
+        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+        if (user.depositBalance < requiredDeposit) {
+            user.isVerified = false;
+        }
+
+        await user.save();
+
+        await recordTransaction(user.id, 'penalty', -Number(amount), `Штраф платформы: ${reason}`);
+        await logAdminAction(adminId, 'PENALTY_USER', `Пользователю ${user.phone} выписан штраф ${amount} ₽. Причина: ${reason}`);
+
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
 
 // СОЗДАНИЕ ЛОТА (Админом)
 app.post('/api/lots', async (req, res) => {
@@ -374,7 +458,7 @@ app.put('/api/lots/:id', async (req, res) => {
 // ДУБЛИРОВАНИЕ ЛОТА
 app.post('/api/lots/:id/copy', async (req, res) => {
     try {
-        const { adminId } = req.body; // Ожидаем ID админа
+        const { adminId } = req.body; 
         const oldLot = await Lot.findByPk(req.params.id);
         if (!oldLot) return res.status(404).json({ error: 'Лот не найден' });
         
@@ -419,7 +503,6 @@ app.patch('/api/admin/users/:id/action', async (req, res) => {
             user.isVerified = !user.isVerified;
             await logAdminAction(adminId, user.isVerified ? 'VERIFY_USER' : 'UNVERIFY_USER', `Верификация изменена у ${user.phone}`);
         } else if (action === 'block') {
-            // Суперадмина заблокировать нельзя
             if (user.role === 'superadmin') return res.status(403).json({ error: 'Нельзя заблокировать Суперадминистратора' });
             user.isBlocked = !user.isBlocked;
             await logAdminAction(adminId, user.isBlocked ? 'BLOCK_USER' : 'UNBLOCK_USER', `Блокировка изменена у ${user.phone}`);
@@ -437,7 +520,6 @@ app.patch('/api/admin/users/:id/action', async (req, res) => {
 app.patch('/api/admin/users/:id/role', async (req, res) => {
     try {
         const { role, adminId } = req.body; 
-        // Проверяем, что запрос делает суперадмин
         const superAdmin = await User.findByPk(adminId);
         if (!superAdmin || superAdmin.role !== 'superadmin') {
             return res.status(403).json({ error: 'Нет прав. Только Суперадмин может назначать администраторов.' });
@@ -445,11 +527,9 @@ app.patch('/api/admin/users/:id/role', async (req, res) => {
 
         const user = await User.findByPk(req.params.id);
         if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-
-        // Нельзя понизить самого себя (защита от выстрела в ногу)
         if (user.id === superAdmin.id) return res.status(403).json({ error: 'Нельзя изменить роль самому себе' });
 
-        user.role = role; // 'user' или 'admin'
+        user.role = role;
         await user.save();
         
         await logAdminAction(adminId, 'CHANGE_ROLE', `Пользователю ${user.phone} назначена роль: ${role}`);
@@ -483,7 +563,7 @@ app.get('/api/admin/logs', async (req, res) => {
 app.get('/api/admin/transactions', async (req, res) => {
     try {
         const transactions = await Transaction.findAll({
-            include: [{ model: User, attributes: ['phone', 'inn'] }],
+            include: [{ model: User, attributes: ['phone', 'inn', 'userType'] }],
             order: [['createdAt', 'DESC']],
             limit: 1000
         });
@@ -493,18 +573,18 @@ app.get('/api/admin/transactions', async (req, res) => {
     }
 });
 
-// ВЫГРУЗКА В EXCEL: Список пользователей (CSV с BOM для идеального чтения в Excel)
+// ВЫГРУЗКА В EXCEL: Список пользователей
 app.get('/api/admin/export/users', async (req, res) => {
     try {
         const users = await User.findAll({ order: [['createdAt', 'DESC']] });
         
-        // \uFEFF сообщает Экселю, что это UTF-8, чтобы кириллица читалась идеально
         let csvContent = '\uFEFF'; 
-        csvContent += 'ID;Телефон;ИНН;Депозит (руб);Роль;Верифицирован;Заблокирован;Дата регистрации\n';
+        csvContent += 'ID;Телефон;ИНН;Тип;Депозит (руб);Роль;Верифицирован;Заблокирован;Дата регистрации\n';
         
         users.forEach(u => {
             const date = new Date(u.createdAt).toLocaleDateString('ru-RU');
-            csvContent += `${u.id};${u.phone};${u.inn || 'Нет'};${u.depositBalance};${u.role};${u.isVerified ? 'Да' : 'Нет'};${u.isBlocked ? 'Да' : 'Нет'};${date}\n`;
+            const typeLabel = u.userType === 'legal' ? 'ЮЛ' : 'ФЛ';
+            csvContent += `${u.id};${u.phone};${u.inn || 'Нет'};${typeLabel};${u.depositBalance};${u.role};${u.isVerified ? 'Да' : 'Нет'};${u.isBlocked ? 'Да' : 'Нет'};${date}\n`;
         });
 
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -523,7 +603,6 @@ app.get('/api/admin/lot-report/:id', async (req, res) => {
         });
         if (!lot) return res.status(404).json({ error: 'Лот не найден' });
 
-        // Сортируем ставки
         const sortedBids = lot.Bids.sort((a, b) => b.amount - a.amount);
         
         const reportData = {
@@ -590,14 +669,27 @@ async function triggerAutoBids(lotId) {
     const requiredBid = lot.currentPrice + lot.minStep;
 
     if (bestAutoBid.maxAmount >= requiredBid) {
+        const user = await User.findByPk(bestAutoBid.UserId);
+        if (user.isBlocked) return;
+        
+        // Блокировка автоброкера при минусовом балансе или если не хватает на 49 руб
+        if (user.depositBalance < 49) return; 
+
         lot.currentPrice = requiredBid;
         lot.bidsCount += 1;
         const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
         if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
         await lot.save();
 
-        const user = await User.findByPk(bestAutoBid.UserId);
-        if (user.isBlocked) return;
+        // Списание 49 рублей за работу автоброкера
+        user.depositBalance -= 49;
+        
+        // Перепроверка верификации
+        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+        if (user.depositBalance < requiredDeposit) user.isVerified = false;
+
+        await user.save();
+        await recordTransaction(user.id, 'bid_fee', -49, `Комиссия автоброкера (Лот ${lot.lotNumber})`);
 
         await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
 
@@ -628,11 +720,22 @@ io.on('connection', async (socket) => {
             const user = await User.findByPk(userId);
             if (!user) return;
             if (user.isBlocked) return socket.emit('bidError', { message: 'Ваш аккаунт заблокирован администратором' });
-            if (!user.isVerified && user.depositBalance < 5000) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            
+            // Проверка тарифов (3000 / 5000)
+            const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: `Необходим депозит ${requiredDeposit} ₽` });
+            if (user.depositBalance < 0) return socket.emit('bidError', { message: 'У вас отрицательный баланс. Пополните счет.' });
+            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Недостаточно средств для оплаты комиссии (49 ₽)' });
             
             const lot = await Lot.findByPk(lotId);
             if (lot.status === 'completed') return socket.emit('bidError', { message: 'Торги завершены!' });
             if (maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Лимит слишком мал' });
+
+            // Списываем 49 рублей за включение брокера
+            user.depositBalance -= 49;
+            if (user.depositBalance < requiredDeposit) user.isVerified = false;
+            await user.save();
+            await recordTransaction(user.id, 'bid_fee', -49, `Активация автоброкера (Лот ${lot.lotNumber})`);
 
             let autoBid = await AutoBid.findOne({ where: { LotId: lotId, UserId: userId } });
             if (autoBid) { 
@@ -642,7 +745,7 @@ io.on('connection', async (socket) => {
                 await AutoBid.create({ maxAmount, LotId: lotId, UserId: userId }); 
             }
 
-            socket.emit('bidSuccess', { message: `Робот включен! Лимит: ${maxAmount} ₽` });
+            socket.emit('bidSuccess', { message: `Робот включен (списано 49 ₽)! Лимит: ${maxAmount} ₽` });
             await triggerAutoBids(lotId);
         } catch (error) {
             socket.emit('bidError', { message: 'Ошибка настройки автоброкера' });
@@ -664,12 +767,24 @@ io.on('connection', async (socket) => {
             const user = await User.findByPk(userId);
             if (!user) return;
             if (user.isBlocked) return socket.emit('bidError', { message: 'Действие запрещено. Аккаунт заблокирован.' });
-            if (!user.isVerified && user.depositBalance < 5000) return socket.emit('bidError', { message: 'Внесите депозит 5000 ₽' });
+            
+            // Проверка тарифов (3000 / 5000)
+            const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: `Необходим депозит ${requiredDeposit} ₽` });
+            if (user.depositBalance < 0) return socket.emit('bidError', { message: 'У вас отрицательный баланс. Пополните счет.' });
+            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Недостаточно средств для оплаты комиссии за ставку (49 ₽)' });
 
             const lot = await Lot.findByPk(lotId);
             if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return socket.emit('bidError', { message: 'Торги завершены!' });
 
             if (bidAmount >= lot.currentPrice + lot.minStep) {
+                
+                // Списываем 49 рублей за ручную ставку
+                user.depositBalance -= 49;
+                if (user.depositBalance < requiredDeposit) user.isVerified = false;
+                await user.save();
+                await recordTransaction(user.id, 'bid_fee', -49, `Комиссия за ручную ставку (Лот ${lot.lotNumber})`);
+
                 lot.currentPrice = bidAmount;
                 lot.bidsCount += 1;
                 const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
@@ -683,7 +798,7 @@ io.on('connection', async (socket) => {
 
                 const updatedLots = await Lot.findAll({ include: [Bid] });
                 io.emit('updateLots', updatedLots);
-                socket.emit('bidSuccess', { message: 'Ставка принята!' });
+                socket.emit('bidSuccess', { message: 'Ставка принята (списано 49 ₽)' });
 
                 if (prevLeaderId && prevLeaderId !== user.id) {
                     io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: bidAmount });
