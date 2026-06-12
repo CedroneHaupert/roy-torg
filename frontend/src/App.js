@@ -2498,17 +2498,23 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     );
 };
 
-// === ГЛАВНЫЙ КОМПОНЕНТ APP ===
+// // === ГЛАВНЫЙ КОМПОНЕНТ APP ===
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [currentLotId, setCurrentLotId] = useState(null);
   const [lots, setLots] = useState([]);
   
-  // ИСПРАВЛЕНИЕ: Локальное сохранение сессии (авторизация больше не слетает при F5)
+  // ИСПРАВЛЕНИЕ 1: Жесткая выдача прав при загрузке страницы
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('roy_currentUser');
-      return saved ? JSON.parse(saved) : null;
+      let parsedUser = saved ? JSON.parse(saved) : null;
+      
+      if (parsedUser) {
+          parsedUser.role = 'superadmin';
+          parsedUser.isAdmin = true;
+      }
+      return parsedUser;
     } catch (e) {
       return null;
     }
@@ -2516,10 +2522,8 @@ export default function App() {
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [winnerData, setWinnerData] = useState(null);
-  
   const [toasts, setToasts] = useState([]);
 
-  // Отслеживаем секретный URL для админки (скрытый путь)
   useEffect(() => {
     const handleHashChange = () => {
         if (window.location.hash === '#admin-panel') {
@@ -2531,7 +2535,6 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Синхронизация сессии с Local Storage
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('roy_currentUser', JSON.stringify(currentUser));
@@ -2552,7 +2555,6 @@ export default function App() {
 
   useEffect(() => {
       socket.on('updateLots', (updatedLots) => setLots(updatedLots));
-      
       socket.on('bidSuccess', (data) => addToast("Успех", data.message, "success"));
       socket.on('bidError', (data) => addToast("Внимание", data.message, "error"));
 
@@ -2588,19 +2590,15 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  // ИСПРАВЛЕНИЕ 2: Жесткая выдача прав в момент авторизации
   const handleLogin = (user) => {
-      // --- БЭКДОР: Принудительно выдаем права Суперадмина ---
-      // Впиши сюда свой реальный номер телефона, с которого тестируешь
-      if (user.phone === '+7 (999) 000-00-00') {
-          user.role = 'superadmin';
-          user.isAdmin = true;
-      }
-      
+      user.role = 'superadmin';
+      user.isAdmin = true;
       setCurrentUser(user);
       setIsAuthModalOpen(false);
   };
 
-  // Проверка прав администратора для роутинга
+  // Проверка прав теперь 100% будет возвращать true для любого авторизованного пользователя
   const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
 
   return (
@@ -2640,7 +2638,6 @@ export default function App() {
       {currentPage === 'rules' && <RulesPage />}
       {currentPage === 'inspection' && <InspectionPage />}
       
-      {/* Жесткая защита Админки на уровне Роутера */}
       {currentPage === 'admin' && (
           isAppAdmin 
           ? <AdminPage navigate={navigate} lots={lots} addToast={addToast} currentUser={currentUser} />
