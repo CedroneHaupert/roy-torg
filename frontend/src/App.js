@@ -7,7 +7,7 @@ import {
   MessageCircle, Info, CalendarClock, Archive, Package, CarFront, Tractor,
   ListOrdered, CreditCard, FileUp, User, Bot, History, Lock, UploadCloud, Image as ImageIcon,
   PlayCircle, Star, DownloadCloud, Loader2, Trophy, Users, Car, Repeat,
-  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature, LogOut
+  TrendingUp, Calculator, MapPin, MonitorSmartphone, MessageSquareQuote, ShieldBan, UserCheck, CheckSquare, FileSignature, LogOut, Edit3, Activity, FileSpreadsheet
 } from 'lucide-react';
 
 // Подключаемся к бэкенду
@@ -393,10 +393,8 @@ const UpcomingLotRow = ({ lot, navigate }) => {
 // === СТРАНИЦЫ ===
 
 const HomePage = ({ navigate, lots }) => {
-  // Добавляем состояние для статистики
   const [stats, setStats] = useState({ users: 115, auctions: 27, sold: 15 });
 
-  // Получаем статистику из базы и плюсуем к нашим базовым значениям
   useEffect(() => {
       fetch('/api/admin/stats')
           .then(res => res.json())
@@ -419,7 +417,6 @@ const HomePage = ({ navigate, lots }) => {
       return l.status !== 'completed' && end > now && start <= now;
   });
 
-  // Отфильтровываем лоты, которые еще не начались (Запланированные)
   const scheduledLots = lots.filter(l => {
       const now = Date.now();
       const start = l.startTime ? new Date(l.startTime).getTime() : 0;
@@ -429,7 +426,6 @@ const HomePage = ({ navigate, lots }) => {
   return (
   <main className="flex-1">
     <section className="bg-slate-900 text-white relative py-20 overflow-hidden">
-      {/* ПУТЬ ДО ФОТО ИСПРАВЛЕН: Идет от корня public/ */}
       <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity" style={{ backgroundImage: "url('/foto2.jpg')" }}></div>
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/80 to-transparent"></div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -445,7 +441,6 @@ const HomePage = ({ navigate, lots }) => {
       </div>
     </section>
 
-    {/* СТАТИСТИКА: Растет из базы */}
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-20 mb-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-5 hover:-translate-y-1 transition transform">
@@ -493,7 +488,6 @@ const HomePage = ({ navigate, lots }) => {
         </div>
     </section>
 
-    {/* БЛИЖАЙШИЕ ТОРГИ (АНОНС) */}
     {scheduledLots.length > 0 && (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
       <div className="flex justify-between items-end mb-6">
@@ -510,7 +504,6 @@ const HomePage = ({ navigate, lots }) => {
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                      {/* Выводим ограниченное количество запланированных лотов строками */}
                       {scheduledLots.slice(0, 5).map(lot => (
                           <UpcomingLotRow key={lot.id} lot={lot} navigate={navigate} />
                       ))}
@@ -545,7 +538,6 @@ const HomePage = ({ navigate, lots }) => {
                   { title: "SITRAK C7H MAX (2023)", eval: 5200000, final: 4800000, img: "/sitrak.jpeg" }
               ].map((item, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col hover:shadow-md transition">
-                      {/* ПУТИ ДО ФОТО ИСПРАВЛЕНЫ: Идут от корня public/ */}
                       <div className="h-40 bg-slate-200 rounded-xl mb-4 overflow-hidden"><img src={item.img} alt="" className="w-full h-full object-cover grayscale opacity-80" /></div>
                       <h4 className="font-bold text-slate-800 mb-3">{item.title}</h4>
                       <div className="space-y-2 mb-4">
@@ -590,7 +582,6 @@ const HomePage = ({ navigate, lots }) => {
                     </div>
                 </div>
             </div>
-            {/* Декоративные круги */}
             <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
             <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-blue-700 rounded-full blur-3xl opacity-50 mix-blend-multiply"></div>
         </div>
@@ -1517,6 +1508,17 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                   <button onClick={() => scrollToSection('sec-settings')} className="w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition text-slate-600 hover:bg-slate-100 hover:text-blue-600">
                       <Bot size={18} /> Автоторг (Робот)
                   </button>
+                  
+                  {/* Кнопка Админ-панели (Только для Админов и СуперАдминов) */}
+                  {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                      <>
+                          <hr className="my-2 border-slate-100" />
+                          <button onClick={() => navigate('admin')} className="w-full text-left px-4 py-3 rounded-xl font-bold flex items-center gap-3 transition bg-blue-600 text-white hover:bg-blue-700 shadow-md">
+                              <LayoutDashboard size={18} /> Админ-панель
+                          </button>
+                      </>
+                  )}
+
                   <hr className="my-2 border-slate-100" />
                   <button onClick={handleLogout} className="w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition text-red-600 hover:bg-red-50">
                       <LogOut size={18} /> Выйти
@@ -1723,28 +1725,34 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
   );
 };
 
-// ПОЛНАЯ АДМИН-ПАНЕЛЬ
-const AdminPage = ({ navigate, lots, addToast }) => {
+// ПОЛНАЯ АДМИН-ПАНЕЛЬ (С RBAC, PDF-отчетами, Excel и Транзакциями)
+const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isLoading, setIsLoading] = useState(false);
     const [stats, setStats] = useState({ totalUsers: 0, activeLots: 0, completedLots: 0, frequentBidders: 0 });
     const [adminUsers, setAdminUsers] = useState([]);
+    const [transactions, setTransactions] = useState([]);
+    const [adminLogs, setAdminLogs] = useState([]);
     
-    // Новые стейты для загружаемых файлов
+    // Стейты для редактирования
+    const [editLotId, setEditLotId] = useState(null);
+
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [inspectionFile, setInspectionFile] = useState(null);
     const [avtotekaFile, setAvtotekaFile] = useState(null);
     
     const generateLotNumber = () => 'L-' + Math.floor(10000 + Math.random() * 90000);
 
-    const [formData, setFormData] = useState({
+    const initialFormState = {
         auctionId: 'A-2026-05', 
         lotNumber: generateLotNumber(),
         title: '', description: '', year: '', mileage: '', currentPrice: '',
         minStep: '50000', reservePrice: '', estimatedValue: '', hasNds: true, startTime: '', 
         duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: '',
         sellerInn: '', isSecurityChecked: false
-    });
+    };
+
+    const [formData, setFormData] = useState(initialFormState);
 
     const now = Date.now();
     const scheduledLots = lots.filter(l => l.startTime && new Date(l.startTime).getTime() > now);
@@ -1756,55 +1764,189 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 .then(res => res.json())
                 .then(data => setStats(data))
                 .catch(console.error);
-        }
-        if (activeTab === 'users') {
+        } else if (activeTab === 'users') {
             fetchUsers();
+        } else if (activeTab === 'transactions') {
+            fetchTransactions();
+        } else if (activeTab === 'logs' && currentUser?.role === 'superadmin') {
+            fetchLogs();
         }
-    }, [activeTab]);
+    }, [activeTab, currentUser]);
 
     const fetchUsers = async () => {
         try {
             const res = await fetch('/api/admin/users');
             const data = await res.json();
             if (data.success) setAdminUsers(data.users);
-        } catch (error) {
-            console.error(error);
-        }
+        } catch (error) { console.error(error); }
+    };
+
+    const fetchTransactions = async () => {
+        try {
+            const res = await fetch('/api/admin/transactions');
+            const data = await res.json();
+            if (data.success) setTransactions(data.transactions);
+        } catch (error) { console.error(error); }
+    };
+
+    const fetchLogs = async () => {
+        try {
+            const res = await fetch(`/api/admin/logs?adminId=${currentUser.id}`);
+            const data = await res.json();
+            if (data.success) setAdminLogs(data.logs);
+        } catch (error) { console.error(error); }
     };
 
     const handleUserAction = async (userId, action) => {
         try {
             const res = await fetch(`/api/admin/users/${userId}/action`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
+                body: JSON.stringify({ action, adminId: currentUser.id })
             });
             const data = await res.json();
             if (data.success) {
                 setAdminUsers(data.users);
                 addToast('Успех', 'Статус пользователя обновлен', 'success');
+            } else {
+                addToast('Ошибка', data.error, 'error');
             }
-        } catch (error) {
-            addToast('Ошибка', 'Не удалось изменить статус', 'error');
-        }
+        } catch (error) { addToast('Ошибка', 'Не удалось изменить статус', 'error'); }
+    };
+
+    const handleAssignRole = async (userId, newRole) => {
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/role`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole, adminId: currentUser.id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setAdminUsers(data.users);
+                addToast('Успех', `Пользователю назначена роль: ${newRole}`, 'success');
+            } else {
+                addToast('Ошибка', data.error, 'error');
+            }
+        } catch (error) { addToast('Ошибка', 'Не удалось изменить роль', 'error'); }
     };
 
     const handleFileChange = (e) => {
         if (e.target.files) {
-            const filesArray = Array.from(e.target.files).slice(0, 30);
-            setSelectedFiles(filesArray);
+            setSelectedFiles(Array.from(e.target.files).slice(0, 30));
         }
+    };
+
+    const handleEditLotClick = (lot) => {
+        setEditLotId(lot.id);
+        setFormData({
+            auctionId: lot.auctionId, lotNumber: lot.lotNumber, title: lot.title, 
+            description: lot.description, year: lot.year || '', mileage: lot.mileage || '', 
+            currentPrice: lot.currentPrice, minStep: lot.minStep, reservePrice: lot.reservePrice || '', 
+            estimatedValue: lot.estimatedValue || '', hasNds: lot.hasNds, 
+            startTime: lot.startTime ? new Date(lot.startTime).toISOString().slice(0, 16) : '', 
+            duration: 3, durationType: 'days', mechanicRating: lot.mechanicRating || '8', 
+            videoUrl: lot.videoUrl || '', sellerInn: lot.sellerInn || '', isSecurityChecked: lot.isSecurityChecked
+        });
+        setActiveTab('create');
+        window.scrollTo(0, 0);
     };
 
     const handleCopyLot = async (id) => {
         try {
-            const res = await fetch(`/api/lots/${id}/copy`, { method: 'POST' });
-            if (res.ok) {
-                addToast('Успех', 'Лот успешно скопирован и перенесен в запланированные', 'success');
-            }
-        } catch (e) {
-            addToast('Ошибка', 'Не удалось скопировать лот', 'error');
-        }
+            const res = await fetch(`/api/lots/${id}/copy`, { 
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminId: currentUser.id })
+            });
+            if (res.ok) addToast('Успех', 'Лот успешно скопирован и перенесен в запланированные', 'success');
+        } catch (e) { addToast('Ошибка', 'Не удалось скопировать лот', 'error'); }
     }
+
+    // ГЕНЕРАЦИЯ ОФИЦИАЛЬНОГО PDF ОТЧЕТА ТОРГОВ (Без тяжелых библиотек)
+    const handleGenerateReport = async (lotId) => {
+        try {
+            addToast('Генерация', 'Собираем данные для PDF...', 'info');
+            const res = await fetch(`/api/admin/lot-report/${lotId}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                const r = data.report;
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Отчет по торгам: Лот ${r.lotNumber}</title>
+                        <style>
+                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; max-width: 800px; margin: 0 auto; }
+                            h1 { color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px;}
+                            .info-block { background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0;}
+                            .info-row { margin-bottom: 12px; font-size: 15px; }
+                            .info-row strong { display: inline-block; width: 250px; color: #475569; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                            th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: left; font-size: 14px; }
+                            th { background-color: #f1f5f9; color: #1e293b; }
+                            .status { font-weight: bold; color: #059669; }
+                            .highlight { font-size: 20px; font-weight: 900; color: #0f172a; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Официальный протокол торгов РОЙ ТОРГ</h1>
+                        <div class="info-block">
+                            <div class="info-row"><strong>Номер аукциона:</strong> ${r.auctionId}</div>
+                            <div class="info-row"><strong>Номер лота:</strong> ${r.lotNumber}</div>
+                            <div class="info-row"><strong>Наименование техники:</strong> ${r.title}</div>
+                            <div class="info-row"><strong>Год выпуска:</strong> ${r.year || 'Не указан'}</div>
+                            <div class="info-row"><strong>Пробег/МЧ:</strong> ${r.mileage || 'Не указан'}</div>
+                            <div class="info-row"><strong>ИНН Продавца:</strong> ${r.sellerInn}</div>
+                            <div class="info-row"><strong>Рыночная оценка:</strong> ${r.estimatedValue} ₽</div>
+                            <div class="info-row"><strong>Скрытый резерв:</strong> ${r.minReserve} ₽</div>
+                            <div class="info-row" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #cbd5e1;">
+                                <strong>Финальная цена продажи:</strong> <span class="highlight">${r.finalPrice} ₽</span>
+                            </div>
+                            <div class="info-row"><strong>Дата завершения:</strong> ${r.endDate}</div>
+                            <div class="info-row"><strong>Статус:</strong> <span class="status">Торги завершены</span></div>
+                        </div>
+                        
+                        <h2>Журнал ставок (История торгов)</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Время ставки</th>
+                                    <th>Участник (Телефон)</th>
+                                    <th>Сумма (₽)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${r.bidsHistory.length === 0 ? '<tr><td colspan="3" style="text-align: center;">Ставок не было</td></tr>' : ''}
+                                ${r.bidsHistory.map((b, i) => `
+                                    <tr style="${i === 0 ? 'background-color: #f0fdf4; font-weight: bold;' : ''}">
+                                        <td>${b.time}</td>
+                                        <td>${b.phone} ${i === 0 ? '<span style="color:#059669; font-size:11px; margin-left:8px;">ПОБЕДИТЕЛЬ</span>' : ''}</td>
+                                        <td>${b.amount}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        
+                        <div style="margin-top: 50px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                            Документ сгенерирован автоматически Платформой РОЙ ТОРГ.<br/>
+                            Дата выгрузки: ${new Date().toLocaleString('ru-RU')}
+                        </div>
+                        
+                        <script>
+                            // Небольшая задержка для рендеринга стилей, затем вызов системного окна печати
+                            setTimeout(() => { window.print(); }, 800);
+                        </script>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            } else {
+                addToast('Ошибка', 'Не удалось сформировать отчет', 'error');
+            }
+        } catch(e) {
+            addToast('Ошибка', 'Сбой сервера при выгрузке', 'error');
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -1817,18 +1959,11 @@ const AdminPage = ({ navigate, lots, addToast }) => {
             
             if (selectedFiles.length > 0 || inspectionFile || avtotekaFile) {
                 const formDataObj = new FormData();
-                
-                selectedFiles.forEach(file => {
-                    formDataObj.append('photos', file);
-                });
+                selectedFiles.forEach(file => formDataObj.append('photos', file));
                 if (inspectionFile) formDataObj.append('inspectionPdf', inspectionFile);
                 if (avtotekaFile) formDataObj.append('avtotekaPdf', avtotekaFile);
 
-                const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formDataObj
-                });
-                
+                const uploadRes = await fetch('/api/upload', { method: 'POST', body: formDataObj });
                 const uploadData = await uploadRes.json();
                 if (uploadData.success) {
                     uploadedUrls = uploadData.urls;
@@ -1842,36 +1977,34 @@ const AdminPage = ({ navigate, lots, addToast }) => {
             }
 
             const lotDataToSubmit = {
-                ...formData,
-                images: uploadedUrls,
-                inspectionPdf: uploadedInspection,
-                avtotekaPdf: uploadedAvtoteka
+                ...formData, adminId: currentUser.id,
+                images: uploadedUrls.length ? uploadedUrls : undefined,
+                inspectionPdf: uploadedInspection || undefined,
+                avtotekaPdf: uploadedAvtoteka || undefined
             };
 
-            const response = await fetch('/api/lots', {
-                method: 'POST',
+            // Если редактируем — шлем PUT, если создаем — POST
+            const url = editLotId ? `/api/lots/${editLotId}` : '/api/lots';
+            const method = editLotId ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(lotDataToSubmit)
             });
 
             if (response.ok) {
-                addToast('Успех', 'Лот успешно создан и добавлен в базу!', 'success');
-                setFormData({ 
-                  auctionId: 'A-2026-05', lotNumber: generateLotNumber(),
-                  title: '', description: '', year: '', mileage: '', currentPrice: '', 
-                  minStep: '50000', reservePrice: '', estimatedValue: '', hasNds: true, startTime: '', 
-                  duration: 3, durationType: 'days', mechanicRating: '8', videoUrl: '',
-                  sellerInn: '', isSecurityChecked: false
-                });
+                addToast('Успех', editLotId ? 'Лот успешно обновлен!' : 'Лот успешно создан!', 'success');
+                setFormData(initialFormState);
+                setEditLotId(null);
                 setSelectedFiles([]);
                 setInspectionFile(null);
                 setAvtotekaFile(null);
                 setActiveTab('scheduled');
             } else {
-                addToast('Ошибка', 'Не удалось создать лот', 'error');
+                addToast('Ошибка', 'Не удалось сохранить лот', 'error');
             }
         } catch (error) {
-            console.error(error);
             addToast('Сбой сервера', 'Проверьте, запущен ли бэкенд.', 'error');
         } finally {
             setIsLoading(false);
@@ -1894,92 +2027,171 @@ const AdminPage = ({ navigate, lots, addToast }) => {
      };
 
     return (
-        <main className="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+        <main className="max-w-6xl mx-auto px-4 py-12 flex-1 w-full">
             <div className="flex items-center gap-4 mb-8">
                 <div className="bg-slate-900 text-white p-3 rounded-xl"><LayoutDashboard size={24}/></div>
                 <div>
                     <h2 className="text-3xl font-black text-slate-800">Панель Управления</h2>
-                    <p className="text-slate-500">Система управления аукционами РОЙ</p>
+                    <p className="text-slate-500 font-medium">Режим: {currentUser.role === 'superadmin' ? <span className="text-purple-600 font-bold">Супер-Администратор</span> : <span className="text-blue-600 font-bold">Администратор</span>}</p>
                 </div>
             </div>
 
             <div className="flex gap-2 border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
-                <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                <button onClick={() => setActiveTab('dashboard')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'dashboard' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <LayoutDashboard size={18}/> Дашборд
                 </button>
-                {/* НОВАЯ ВКЛАДКА: Пользователи */}
-                <button onClick={() => setActiveTab('users')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                <button onClick={() => setActiveTab('users')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Users size={18}/> Пользователи
                 </button>
-                <button onClick={() => setActiveTab('create')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'create' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                    <PlusCircle size={18}/> Создать лот
+                <button onClick={() => { setActiveTab('create'); setEditLotId(null); setFormData(initialFormState); }} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'create' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    {editLotId ? <><Edit3 size={18}/> Редактирование</> : <><PlusCircle size={18}/> Создать лот</>}
                 </button>
-                <button onClick={() => setActiveTab('scheduled')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'scheduled' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                <button onClick={() => setActiveTab('scheduled')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'scheduled' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <CalendarClock size={18}/> Запланированные <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{scheduledLots.length}</span>
                 </button>
-                <button onClick={() => setActiveTab('archive')} className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'archive' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                <button onClick={() => setActiveTab('archive')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'archive' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Archive size={18}/> Архив торгов <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{archivedLots.length}</span>
                 </button>
+                <button onClick={() => setActiveTab('transactions')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'transactions' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <Wallet size={18}/> Транзакции
+                </button>
+                
+                {currentUser.role === 'superadmin' && (
+                    <button onClick={() => setActiveTab('logs')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'logs' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-slate-500 hover:text-purple-800'}`}>
+                        <Activity size={18}/> Логи действий
+                    </button>
+                )}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm">
                 
-                {/* ВКЛАДКА ПОЛЬЗОВАТЕЛИ */}
+                {/* ВКЛАДКА ПОЛЬЗОВАТЕЛИ (С ЭКСПОРТОМ И РОЛЯМИ) */}
                 {activeTab === 'users' && (
+                    <div className="space-y-4">
+                        <div className="flex justify-end mb-4">
+                            {/* Выгрузка в Excel (через CSV) */}
+                            <button onClick={() => window.open('/api/admin/export/users', '_blank')} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition shadow flex items-center gap-2">
+                                <FileSpreadsheet size={16}/> Выгрузить базу (Excel)
+                            </button>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-slate-50">
+                                        <th className="py-4 px-4 font-bold rounded-tl-xl">Телефон / Роль</th>
+                                        <th className="py-4 px-4 font-bold">Депозит</th>
+                                        <th className="py-4 px-4 font-bold">Документы</th>
+                                        <th className="py-4 px-4 font-bold">Статус</th>
+                                        <th className="py-4 px-4 font-bold text-right rounded-tr-xl">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {adminUsers.map((user) => (
+                                        <tr key={user.id} className={`border-b border-slate-100 transition ${user.isBlocked ? 'bg-red-50/50' : 'hover:bg-slate-50'}`}>
+                                            <td className="py-4 px-4">
+                                                <div className="font-bold text-slate-800">{user.phone}</div>
+                                                <div className="text-[10px] uppercase font-bold mt-1 tracking-wider">
+                                                    {user.role === 'superadmin' ? <span className="text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">SuperAdmin</span> : 
+                                                     user.role === 'admin' ? <span className="text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">Admin</span> : 
+                                                     <span className="text-slate-400">User</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4 font-bold text-blue-600">{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex flex-col gap-1 text-sm">
+                                                    {user.companyPdf ? <a href={`${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
+                                                    {user.passportPdf ? <a href={`${user.passportPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><User size={14}/> Паспорт ФЛ</a> : <span className="text-slate-400 text-xs">ФЛ: Нет</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    {user.isBlocked ? (
+                                                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">Заблокирован</span>
+                                                    ) : user.isVerified ? (
+                                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">Верифицирован</span>
+                                                    ) : (
+                                                        <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded">Без доступа</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4 flex justify-end gap-2 items-center">
+                                                {/* Только СуперАдмин может назначать админов */}
+                                                {currentUser.role === 'superadmin' && user.role !== 'superadmin' && (
+                                                    user.role === 'admin' 
+                                                    ? <button onClick={() => handleAssignRole(user.id, 'user')} className="text-xs bg-slate-200 text-slate-700 font-bold px-2 py-1.5 rounded hover:bg-slate-300">Снять админа</button>
+                                                    : <button onClick={() => handleAssignRole(user.id, 'admin')} className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-1.5 rounded hover:bg-blue-200">Сделать админом</button>
+                                                )}
+
+                                                <button 
+                                                    onClick={() => handleUserAction(user.id, 'verify')} 
+                                                    className={`p-2 rounded-lg transition ${user.isVerified ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                                    title={user.isVerified ? "Снять верификацию" : "Верифицировать вручную"}
+                                                >
+                                                    <UserCheck size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleUserAction(user.id, 'block')} 
+                                                    className={`p-2 rounded-lg transition ${user.isBlocked ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                                    title={user.isBlocked ? "Разблокировать" : "Заблокировать аккаунт"}
+                                                >
+                                                    <ShieldBan size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* ВКЛАДКА ТРАНЗАКЦИИ */}
+                {activeTab === 'transactions' && (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-slate-50">
-                                    <th className="py-4 px-4 font-bold rounded-tl-xl">Телефон</th>
-                                    <th className="py-4 px-4 font-bold">Депозит</th>
-                                    <th className="py-4 px-4 font-bold">Документы</th>
-                                    <th className="py-4 px-4 font-bold">Статус</th>
-                                    <th className="py-4 px-4 font-bold text-right rounded-tr-xl">Действия</th>
+                                    <th className="py-4 px-4 font-bold rounded-tl-xl">Дата</th>
+                                    <th className="py-4 px-4 font-bold">Пользователь (ИНН)</th>
+                                    <th className="py-4 px-4 font-bold">Тип операции</th>
+                                    <th className="py-4 px-4 font-bold text-right rounded-tr-xl">Сумма (₽)</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {adminUsers.map((user) => (
-                                    <tr key={user.id} className={`border-b border-slate-100 transition ${user.isBlocked ? 'bg-red-50/50' : 'hover:bg-slate-50'}`}>
-                                        <td className="py-4 px-4 font-bold text-slate-800">{user.phone}</td>
-                                        <td className="py-4 px-4 font-bold text-blue-600">{user.depositBalance.toLocaleString('ru-RU')} ₽</td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex flex-col gap-1 text-sm">
-                                                {user.companyPdf ? <a href={`${user.companyPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileText size={14}/> Реквизиты ЮЛ</a> : <span className="text-slate-400 text-xs">ЮЛ: Нет</span>}
-                                                {user.passportPdf ? <a href={`${user.passportPdf}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><User size={14}/> Паспорт ФЛ</a> : <span className="text-slate-400 text-xs">ФЛ: Нет</span>}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex flex-col gap-1 items-start">
-                                                {user.isBlocked ? (
-                                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">Заблокирован</span>
-                                                ) : user.isVerified ? (
-                                                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">Верифицирован</span>
-                                                ) : (
-                                                    <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded">Без доступа</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4 flex justify-end gap-2">
-                                            <button 
-                                                onClick={() => handleUserAction(user.id, 'verify')} 
-                                                className={`p-2 rounded-lg transition ${user.isVerified ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                                                title={user.isVerified ? "Снять верификацию" : "Верифицировать вручную"}
-                                            >
-                                                <UserCheck size={18} />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleUserAction(user.id, 'block')} 
-                                                className={`p-2 rounded-lg transition ${user.isBlocked ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
-                                                title={user.isBlocked ? "Разблокировать" : "Заблокировать аккаунт"}
-                                            >
-                                                <ShieldBan size={18} />
-                                            </button>
-                                        </td>
+                                {transactions.length === 0 ? <tr><td colSpan="4" className="text-center py-8 text-slate-500">Транзакций пока нет.</td></tr> : transactions.map(tx => (
+                                    <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                        <td className="py-4 px-4 text-sm text-slate-500">{new Date(tx.createdAt).toLocaleString('ru-RU')}</td>
+                                        <td className="py-4 px-4 font-bold text-slate-800">{tx.User?.phone} {tx.User?.inn && <span className="text-xs font-mono text-slate-400 block">{maskInn(tx.User.inn)}</span>}</td>
+                                        <td className="py-4 px-4 text-sm text-slate-600">{tx.description}</td>
+                                        <td className="py-4 px-4 font-black text-right text-blue-600">+{tx.amount.toLocaleString('ru-RU')}</td>
                                     </tr>
                                 ))}
-                                {adminUsers.length === 0 && (
-                                    <tr><td colSpan="5" className="text-center py-8 text-slate-500">Пользователи не найдены.</td></tr>
-                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* ВКЛАДКА ЛОГИ СУПЕРАДМИНА */}
+                {activeTab === 'logs' && currentUser.role === 'superadmin' && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-500 bg-purple-50">
+                                    <th className="py-4 px-4 font-bold rounded-tl-xl">Время</th>
+                                    <th className="py-4 px-4 font-bold">Исполнитель</th>
+                                    <th className="py-4 px-4 font-bold">Событие</th>
+                                    <th className="py-4 px-4 font-bold rounded-tr-xl">Детали</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {adminLogs.length === 0 ? <tr><td colSpan="4" className="text-center py-8 text-slate-500">Логи пусты.</td></tr> : adminLogs.map(log => (
+                                    <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                        <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">{new Date(log.createdAt).toLocaleString('ru-RU')}</td>
+                                        <td className="py-3 px-4 text-sm font-bold text-slate-700">{log.Admin ? log.Admin.phone : 'СИСТЕМА'}</td>
+                                        <td className="py-3 px-4 text-xs font-mono bg-slate-100 px-2 rounded inline-block mt-2">{log.action}</td>
+                                        <td className="py-3 px-4 text-sm text-slate-600">{log.details}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -2012,6 +2224,12 @@ const AdminPage = ({ navigate, lots, addToast }) => {
 
                 {activeTab === 'create' && (
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {editLotId && (
+                            <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center justify-between">
+                                <div className="font-bold text-blue-800">Режим редактирования лота</div>
+                                <button type="button" onClick={() => { setEditLotId(null); setFormData(initialFormState); }} className="text-xs bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">Отменить редактирование</button>
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Номер аукциона</label>
@@ -2185,7 +2403,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                         <hr className="border-slate-100" />
                         <div className="pt-4 flex gap-4">
                             <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl transition flex-1 flex justify-center items-center gap-2">
-                                {isLoading ? 'Идет загрузка...' : <><PlusCircle size={20}/> Создать и запланировать</>}
+                                {isLoading ? 'Идет сохранение...' : editLotId ? <><CheckCircle2 size={20}/> Сохранить изменения</> : <><PlusCircle size={20}/> Создать и запланировать</>}
                             </button>
                         </div>
                     </form>
@@ -2194,7 +2412,7 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                 {activeTab === 'scheduled' && (
                     <div className="space-y-4">
                         {scheduledLots.length === 0 ? <div className="text-center py-12 text-slate-500">Нет запланированных торгов.</div> : scheduledLots.map(lot => (
-                            <div key={lot.id} className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl gap-4">
+                            <div key={lot.id} className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl gap-4 hover:shadow-md transition">
                                 <div className="flex-1">
                                     <div className="text-xs text-slate-400 mb-1">Аукцион #{lot.auctionId} • Лот #{lot.lotNumber || lot.id}</div>
                                     <h4 className="font-bold text-slate-800">{lot.title}</h4>
@@ -2202,7 +2420,13 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                                 <div className="text-sm font-bold text-slate-600 bg-white px-4 py-2 rounded-lg border border-slate-200 flex items-center gap-2">
                                     <CalendarClock size={16} className="text-blue-600"/> Старт: {new Date(lot.startTime).toLocaleString('ru-RU')}
                                 </div>
-                                <button onClick={() => navigate('lot', lot.id)} className="text-blue-600 font-bold text-sm hover:underline">Просмотр</button>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => navigate('lot', lot.id)} className="text-blue-600 font-bold text-sm hover:underline px-2">Просмотр</button>
+                                    {/* КНОПКА РЕДАКТИРОВАНИЯ */}
+                                    <button onClick={() => handleEditLotClick(lot)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg transition" title="Редактировать">
+                                        <Edit3 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -2229,11 +2453,15 @@ const AdminPage = ({ navigate, lots, addToast }) => {
                                     </div>
                                 </div>
                                 
-                                <div className="flex flex-col items-end gap-3 mt-4 md:mt-0">
-                                    <div className="text-sm font-black text-slate-800 bg-white px-4 py-2 rounded-lg border border-slate-200">
+                                <div className="flex flex-col items-end gap-3 mt-4 md:mt-0 w-full md:w-auto">
+                                    <div className="text-sm font-black text-slate-800 bg-white px-4 py-2 rounded-lg border border-slate-200 w-full text-center md:text-right">
                                         Продано: {lot.currentPrice.toLocaleString('ru-RU')} ₽
                                     </div>
-                                    <button onClick={() => handleCopyLot(lot.id)} className="text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                                    {/* ВЫГРУЗКА PDF ОТЧЕТА */}
+                                    <button onClick={() => handleGenerateReport(lot.id)} className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
+                                        <FileText size={16}/> Скачать отчет (PDF)
+                                    </button>
+                                    <button onClick={() => handleCopyLot(lot.id)} className="w-full text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
                                         <Repeat size={16}/> Повторить лот
                                     </button>
                                 </div>
@@ -2358,7 +2586,19 @@ export default function App() {
       {currentPage === 'offer' && <OfferPage />}
       {currentPage === 'rules' && <RulesPage />}
       {currentPage === 'inspection' && <InspectionPage />}
-      {currentPage === 'admin' && <AdminPage navigate={navigate} lots={lots} addToast={addToast} />}
+      
+      {/* Жесткая защита Админки на уровне Роутера */}
+      {currentPage === 'admin' && (
+          currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin') 
+          ? <AdminPage navigate={navigate} lots={lots} addToast={addToast} currentUser={currentUser} />
+          : <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
+              <ShieldBan size={64} className="text-red-500 mb-4" />
+              <h2 className="text-2xl font-black text-slate-800">Доступ закрыт</h2>
+              <p className="text-slate-500 mt-2">У вас нет прав администратора для просмотра этой страницы.</p>
+              <button onClick={() => navigate('home')} className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">На главную</button>
+            </div>
+      )}
+
       {currentPage === 'profile' && <ProfilePage navigate={navigate} currentUser={currentUser} setCurrentUser={setCurrentUser} addToast={addToast} lots={lots} />}
       {currentPage === 'lot' && (
         <LotDetailPage 
