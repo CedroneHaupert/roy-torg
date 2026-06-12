@@ -1418,6 +1418,8 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
   const [showRefundInfo, setShowRefundInfo] = useState(false);
   const [depositMethod, setDepositMethod] = useState('card');
 
+  const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
+
   if (!currentUser) {
       return (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
@@ -1490,6 +1492,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
 
   const handleLogout = () => {
       setCurrentUser(null);
+      localStorage.removeItem('roy_currentUser');
       navigate('home');
       addToast('Выход', 'Вы успешно вышли из системы', 'success');
   };
@@ -1530,8 +1533,8 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                       <Bot size={18} /> Автоторг (Робот)
                   </button>
                   
-                  {/* Кнопка Админ-панели (Только для Админов и СуперАдминов) */}
-                  {currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                  {/* КНОПКА АДМИНКИ ТЕПЕРЬ ТУТ! */}
+                  {isAppAdmin && (
                       <>
                           <hr className="my-2 border-slate-100" />
                           <button onClick={() => navigate('admin')} className="w-full text-left px-4 py-3 rounded-xl font-bold flex items-center gap-3 transition bg-blue-600 text-white hover:bg-blue-700 shadow-md">
@@ -2500,7 +2503,17 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [currentLotId, setCurrentLotId] = useState(null);
   const [lots, setLots] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  
+  // ИСПРАВЛЕНИЕ: Локальное сохранение сессии (авторизация больше не слетает при F5)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('roy_currentUser');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [winnerData, setWinnerData] = useState(null);
   
@@ -2517,6 +2530,15 @@ export default function App() {
     handleHashChange(); 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Синхронизация сессии с Local Storage
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('roy_currentUser', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('roy_currentUser');
+    }
+  }, [currentUser]);
   
   const addToast = (title, message = '', type = 'info') => {
     const id = Date.now();
@@ -2571,6 +2593,9 @@ export default function App() {
       setIsAuthModalOpen(false);
   };
 
+  // Проверка прав администратора для роутинга
+  const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800 relative">
       
@@ -2610,7 +2635,7 @@ export default function App() {
       
       {/* Жесткая защита Админки на уровне Роутера */}
       {currentPage === 'admin' && (
-          currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin') 
+          isAppAdmin 
           ? <AdminPage navigate={navigate} lots={lots} addToast={addToast} currentUser={currentUser} />
           : <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
               <ShieldBan size={64} className="text-red-500 mb-4" />
