@@ -1531,7 +1531,7 @@ const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) 
                   </button>
                   
                   {/* Кнопка Админ-панели (Только для Админов и СуперАдминов) */}
-                  {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                  {currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
                       <>
                           <hr className="my-2 border-slate-100" />
                           <button onClick={() => navigate('admin')} className="w-full text-left px-4 py-3 rounded-xl font-bold flex items-center gap-3 transition bg-blue-600 text-white hover:bg-blue-700 shadow-md">
