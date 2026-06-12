@@ -42,7 +42,7 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
-// === МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (С ОФЕРТОЙ) ===
+// === МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (С ОФЕРТОЙ И МАСКОЙ) ===
 const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
   const [step, setStep] = useState(1); 
   const [phone, setPhone] = useState('');
@@ -51,6 +51,26 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   if (!isOpen) return null;
+
+  // Форматирование телефона на лету
+  const handlePhoneChange = (e) => {
+      let val = e.target.value.replace(/\D/g, '');
+      if (!val) {
+          setPhone('');
+          return;
+      }
+      if (['7', '8'].includes(val[0])) {
+          val = val.substring(1);
+      }
+      
+      let res = '+7';
+      if (val.length > 0) res += ' (' + val.substring(0, 3);
+      if (val.length >= 4) res += ') ' + val.substring(3, 6);
+      if (val.length >= 7) res += '-' + val.substring(6, 8);
+      if (val.length >= 9) res += '-' + val.substring(8, 10);
+      
+      setPhone(res);
+  };
 
   const handlePhoneSubmit = async (e) => {
     e.preventDefault();
@@ -121,7 +141,8 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
                 required
                 placeholder="+7 (999) 000-00-00"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={handlePhoneChange}
+                maxLength={18}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-4 text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition text-lg font-medium tracking-wide"
               />
             </div>
@@ -141,7 +162,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
 
             <button 
               type="submit" 
-              disabled={isLoading || phone.length < 10 || !agreedToTerms}
+              disabled={isLoading || phone.length < 18 || !agreedToTerms}
               className="w-full bg-[#F97316] disabled:bg-orange-300 hover:bg-orange-600 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-orange-500/30 transition transform hover:-translate-y-0.5"
             >
               {isLoading ? 'Отправка СМС...' : 'Получить код'}
@@ -160,7 +181,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
                 maxLength="4"
                 placeholder="0000"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-4 text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition text-3xl font-black tracking-[1em] text-center"
               />
             </div>
