@@ -1472,7 +1472,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   );
 };
 
-// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ (С загрузкой документов и счетами для ЮЛ)
+// ПОЛНЫЙ ЛИЧНЫЙ КАБИНЕТ
 const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) => {
   const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
   const [showRefundInfo, setShowRefundInfo] = useState(false);
@@ -1889,6 +1889,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     };
 
     const fetchLogs = async () => {
+        if (!currentUser?.id) return;
         try {
             const res = await fetch(`/api/admin/logs?adminId=${currentUser.id}`);
             const data = await res.json();
@@ -1897,6 +1898,10 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     };
 
     const handleUserAction = async (userId, action) => {
+        if (!currentUser?.id) {
+            addToast('Ошибка сессии', 'Отсутствует ID. Выйдите и зайдите заново.', 'error');
+            return;
+        }
         try {
             const res = await fetch(`/api/admin/users/${userId}/action`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1913,22 +1918,35 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     };
 
     const handleAssignRole = async (userId, newRole) => {
+        if (!currentUser?.id) {
+            addToast('Ошибка сессии', 'Система не может подтвердить ваш ID. Выйдите из аккаунта и войдите заново!', 'error');
+            return;
+        }
         try {
             const res = await fetch(`/api/admin/users/${userId}/role`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: newRole, adminId: currentUser.id })
             });
             const data = await res.json();
+            
             if (data.success) {
                 setAdminUsers(data.users);
                 addToast('Успех', `Пользователю назначена роль: ${newRole}`, 'success');
             } else {
-                addToast('Ошибка', data.error, 'error');
+                // Если бэкенд не пускает, мы явно говорим пользователю перелогиниться
+                if (data.error && data.error.includes('Нет прав')) {
+                    addToast('Внимание!', 'Бэкенд вас не пускает. Выйдите из аккаунта и войдите заново, чтобы обновить права в базе данных!', 'error');
+                } else {
+                    addToast('Ошибка', data.error || 'Ошибка при изменении роли', 'error');
+                }
             }
-        } catch (error) { addToast('Ошибка', 'Не удалось изменить роль', 'error'); }
+        } catch (error) { 
+            addToast('Ошибка сети', 'Не удалось связаться с сервером', 'error'); 
+        }
     };
 
     const handleLeadStatus = async (id, status) => {
+        if (!currentUser?.id) return addToast('Ошибка', 'Перезайдите в аккаунт', 'error');
         try {
             const res = await fetch(`/api/admin/leads/${id}/status`, {
                 method: 'PATCH', headers: {'Content-Type': 'application/json'},
@@ -1965,6 +1983,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     };
 
     const handleCopyLot = async (id) => {
+        if (!currentUser?.id) return addToast('Ошибка', 'Перезайдите в аккаунт', 'error');
         try {
             const res = await fetch(`/api/lots/${id}/copy`, { 
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2091,7 +2110,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
             }
 
             const lotDataToSubmit = {
-                ...formData, adminId: currentUser.id,
+                ...formData, adminId: currentUser?.id,
                 images: uploadedUrls.length ? uploadedUrls : undefined,
                 inspectionPdf: uploadedInspection || undefined,
                 avtotekaPdf: uploadedAvtoteka || undefined
