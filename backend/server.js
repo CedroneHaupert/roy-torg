@@ -334,7 +334,6 @@ app.post('/api/payments/youkassa/create', async (req, res) => {
         
         if (paymentData.confirmation && paymentData.confirmation.confirmation_url) {
             console.log('✅ Ссылка успешно получена!');
-            // Отдаем confirmationUrl ровно так, как ждет фронтенд
             res.json({ success: true, confirmationUrl: paymentData.confirmation.confirmation_url });
         } else {
             console.error('❌ Ошибка от ЮKassa:', paymentData);
@@ -346,7 +345,6 @@ app.post('/api/payments/youkassa/create', async (req, res) => {
     }
 });
 
-// Обновил URL вебхука, чтобы он совпадал с тем, что я просил вписать в личном кабинете ЮKassa
 app.post('/api/payments/youkassa/webhook', async (req, res) => {
     try {
         const event = req.body;
@@ -715,7 +713,8 @@ app.get('/api/admin/stats', async (req, res) => {
 async function triggerAutoBids(lotId) {
     try {
         const lot = await Lot.findByPk(lotId);
-        if (!lot || lot.status === 'active' || new Date(lot.endTime).getTime() <= Date.now()) return;
+        // Исправлено: если лот НЕ активен, то выходим
+        if (!lot || lot.status !== 'active' || new Date(lot.endTime).getTime() <= Date.now()) return;
 
         const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
         const prevLeaderId = latestBid ? latestBid.UserId : null;
@@ -772,14 +771,22 @@ io.on('connection', async (socket) => {
     socket.on('setupAutoBroker', async (data) => {
         try {
             const user = await User.findByPk(data.userId);
-            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Заблокирован' });
+            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Аккаунт заблокирован' });
             
             const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
             if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: 'Пополните депозит' });
-            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
+            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на включение робота' });
             
             const lot = await Lot.findByPk(data.lotId);
-            if (lot.status === 'active' || data.maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка лимита' });
+            
+            if (!lot) return socket.emit('bidError', { message: 'Лот не найден в базе' });
+            // Исправлено: !== 'active'
+            if (lot.status !== 'active') return socket.emit('bidError', { message: `Торги недоступны (Статус: ${lot.status})` });
+            
+            const requiredBid = Number(lot.currentPrice) + Number(lot.minStep);
+            const userMax = Number(data.maxAmount);
+
+            if (userMax < requiredBid) return socket.emit('bidError', { message: `Лимит меньше минимальной ставки: ${requiredBid.toLocaleString('ru-RU')} ₽` });
 
             user.depositBalance -= 49;
             if (user.depositBalance < requiredDeposit) user.isVerified = false;
@@ -788,17 +795,17 @@ io.on('connection', async (socket) => {
 
             let autoBid = await AutoBid.findOne({ where: { LotId: data.lotId, UserId: data.userId } });
             if (autoBid) { 
-                autoBid.maxAmount = data.maxAmount; 
+                autoBid.maxAmount = userMax; 
                 await autoBid.save(); 
             } else { 
-                await AutoBid.create({ maxAmount: data.maxAmount, LotId: data.lotId, UserId: data.userId }); 
+                await AutoBid.create({ maxAmount: userMax, LotId: data.lotId, UserId: data.userId }); 
             }
 
             socket.emit('bidSuccess', { message: `Робот включен (списано 49 ₽)` });
             await triggerAutoBids(data.lotId);
         } catch (error) { 
             console.error('Ошибка сокета setupAutoBroker:', error);
-            socket.emit('bidError', { message: 'Ошибка сервера' }); 
+            socket.emit('bidError', { message: 'Внутренняя ошибка сервера' }); 
         }
     });
 
@@ -814,26 +821,39 @@ io.on('connection', async (socket) => {
     socket.on('placeBid', async (data) => {
         try {
             const user = await User.findByPk(data.userId);
-            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Заблокирован' });
+            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Аккаунт заблокирован' });
             
             const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
             if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: 'Пополните депозит' });
             if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
 
             const lot = await Lot.findByPk(data.lotId);
-            if (!lot || lot.status === 'active' || new Date(lot.endTime).getTime() <= Date.now() || data.bidAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка ставки' });
+            
+            if (!lot) return socket.emit('bidError', { message: 'Лот не найден' });
+            // Исправлено: !== 'active'
+            if (lot.status !== 'active') return socket.emit('bidError', { message: `Торги недоступны (Статус: ${lot.status})` });
+            if (new Date(lot.endTime).getTime() <= Date.now()) return socket.emit('bidError', { message: 'Время торгов уже вышло' });
+            
+            const currentPrice = Number(lot.currentPrice);
+            const minStep = Number(lot.minStep);
+            const requiredBid = currentPrice + minStep;
+            const userBid = Number(data.bidAmount);
+
+            if (userBid < requiredBid) {
+                return socket.emit('bidError', { message: `Ставка мала! Нужно: ${requiredBid.toLocaleString('ru-RU')} ₽` });
+            }
 
             user.depositBalance -= 49;
             if (user.depositBalance < requiredDeposit) user.isVerified = false;
             await user.save();
             await recordTransaction(user.id, 'bid_fee', -49, `Ручная ставка (Лот ${lot.lotNumber})`);
 
-            lot.currentPrice = data.bidAmount; 
+            lot.currentPrice = userBid; 
             lot.bidsCount += 1;
             const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
             if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
             await lot.save();
-            await Bid.create({ amount: data.bidAmount, LotId: lot.id, UserId: user.id, userPhone: user.phone });
+            await Bid.create({ amount: userBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
 
             const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
             const prevLeaderId = latestBid ? latestBid.UserId : null;
@@ -842,15 +862,15 @@ io.on('connection', async (socket) => {
             socket.emit('bidSuccess', { message: 'Ставка принята (списано 49 ₽)' });
 
             if (prevLeaderId && prevLeaderId !== user.id) {
-                io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: data.bidAmount });
+                io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: userBid });
                 // СМС при перебитой ставке
                 const prevUser = await User.findByPk(prevLeaderId);
-                if (prevUser) sendSms(prevUser.phone, `ТОРГИ: Ваша ставка на лот ${lot.lotNumber} перебита. Новая цена: ${data.bidAmount} руб.`);
+                if (prevUser) sendSms(prevUser.phone, `ТОРГИ: Ваша ставка на лот ${lot.lotNumber} перебита. Новая цена: ${userBid} руб.`);
             }
             await triggerAutoBids(lot.id);
         } catch (error) { 
             console.error('Ошибка сокета placeBid:', error);
-            socket.emit('bidError', { message: 'Ошибка сервера' }); 
+            socket.emit('bidError', { message: 'Сбой на сервере' }); 
         }
     });
 });
