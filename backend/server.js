@@ -715,7 +715,7 @@ app.get('/api/admin/stats', async (req, res) => {
 async function triggerAutoBids(lotId) {
     try {
         const lot = await Lot.findByPk(lotId);
-        if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return;
+        if (!lot || lot.status === 'active' || new Date(lot.endTime).getTime() <= Date.now()) return;
 
         const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
         const prevLeaderId = latestBid ? latestBid.UserId : null;
@@ -779,7 +779,7 @@ io.on('connection', async (socket) => {
             if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
             
             const lot = await Lot.findByPk(data.lotId);
-            if (lot.status === 'completed' || data.maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка лимита' });
+            if (lot.status === 'active' || data.maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка лимита' });
 
             user.depositBalance -= 49;
             if (user.depositBalance < requiredDeposit) user.isVerified = false;
@@ -821,7 +821,7 @@ io.on('connection', async (socket) => {
             if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
 
             const lot = await Lot.findByPk(data.lotId);
-            if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now() || data.bidAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка ставки' });
+            if (!lot || lot.status === 'active' || new Date(lot.endTime).getTime() <= Date.now() || data.bidAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка ставки' });
 
             user.depositBalance -= 49;
             if (user.depositBalance < requiredDeposit) user.isVerified = false;
