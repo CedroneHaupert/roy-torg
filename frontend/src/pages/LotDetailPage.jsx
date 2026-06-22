@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Search } from 'lucide-react';
 import { 
   ChevronRight, Archive, TrendingUp, Wallet, Image as ImageIcon, PlayCircle, Star, 
   History, Lock, UserCircle, Trophy, AlertTriangle, CheckCircle2, CreditCard, Gavel, 
-  Info, Bot, MessageCircle, DownloadCloud 
+  Info, Bot, MessageCircle, DownloadCloud, ShieldCheck, Search 
 } from 'lucide-react';
-import { io } from 'socket.io-client';
 
-// Подключаемся к бэкенду. Оставляем глобально для этого компонента, как было в App.js
-const socket = io('');
+// Подключаем единый сокет из App.js (удалили локальный io)
+import { socket } from '../App';
 
 const maskInn = (inn) => {
     if (!inn) return 'Не указан';
@@ -182,7 +180,6 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-slate-100 rounded-2xl overflow-hidden relative border border-slate-200 shadow-sm">
             <div className="h-[400px] relative">
-                {/* ИЗМЕНЕНО: object-contain для детальной карточки, чтобы фото не обрезалось */}
                 <img src={displayImages[currentImageIndex]} alt={lot.title} className={`w-full h-full object-contain transition-opacity duration-300 ${isArchived ? 'grayscale opacity-90' : ''}`} />
                 {!isArchived && displayImages.length > 1 && (
                     <div className="absolute bottom-4 right-4 bg-slate-900/80 text-white px-3 py-1.5 rounded-lg backdrop-blur-sm text-sm shadow-lg flex items-center gap-2">
