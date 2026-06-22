@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Users, Edit3, PlusCircle, 
   CalendarClock, Archive, Wallet, Activity, FileSpreadsheet, 
   FileText, User, UserCheck, ShieldBan, ShieldCheck, Star, PlayCircle, 
-  UploadCloud, CheckCircle2, Search, Trophy, Repeat, Info 
+  UploadCloud, CheckCircle2, Search, Trophy, Repeat, Info, Car
 } from 'lucide-react';
 
 // === Вспомогательная функция маскировки ИНН ===
