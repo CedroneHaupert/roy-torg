@@ -136,7 +136,7 @@ const AuthModal = ({ isOpen, onClose, onLogin, addToast, navigate }) => {
                 type="text" 
                 required
                 maxLength="4"
-                placeholder="0000"
+                placeholder="----"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-4 text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition text-3xl font-black tracking-[1em] text-center"

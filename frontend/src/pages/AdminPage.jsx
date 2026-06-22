@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Users, Edit3, PlusCircle, 
   CalendarClock, Archive, Wallet, Activity, FileSpreadsheet, 
   FileText, User, UserCheck, ShieldBan, ShieldCheck, Star, PlayCircle, 
-  UploadCloud, CheckCircle2, Search, Trophy, Repeat, Info, Car
+  UploadCloud, CheckCircle2, Search, Trophy, Repeat, Info, Car, XCircle 
 } from 'lucide-react';
 
 // === Вспомогательная функция маскировки ИНН ===
@@ -43,8 +43,11 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     const [formData, setFormData] = useState(initialFormState);
 
     const now = Date.now();
-    const scheduledLots = lots.filter(l => l.startTime && new Date(l.startTime).getTime() > now);
-    const archivedLots = lots.filter(l => l.status === 'completed' || new Date(l.endTime).getTime() <= now);
+    
+    // Фильтрация лотов по трем состояниям
+    const activeLots = lots.filter(l => l.status === 'active' && (!l.startTime || new Date(l.startTime).getTime() <= now) && new Date(l.endTime).getTime() > now);
+    const scheduledLots = lots.filter(l => l.status === 'active' && l.startTime && new Date(l.startTime).getTime() > now);
+    const archivedLots = lots.filter(l => l.status === 'completed' || l.status === 'cancelled' || new Date(l.endTime).getTime() <= now);
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
@@ -94,6 +97,44 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
             const data = await res.json();
             if (data.success) setAdminLogs(data.logs);
         } catch (error) { console.error(error); }
+    };
+
+    // ДОСРОЧНАЯ ОСТАНОВКА ТОРГОВ (Фиксация текущей цены и закрытие лота)
+    const handleStopLot = async (id) => {
+        if (!currentUser?.id) return addToast('Ошибка', 'Перезайдите в аккаунт', 'error');
+        if (!window.confirm('Вы уверены, что хотите ДОСРОЧНО ЗАВЕРШИТЬ торги? Текущий лидер будет признан победителем лота.')) return;
+        
+        try {
+            const res = await fetch(`/api/lots/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'completed', endTime: new Date(), adminId: currentUser.id })
+            });
+            if (res.ok) {
+                addToast('Успех', 'Торги успешно остановлены и перенесены в архив!', 'success');
+            }
+        } catch (e) { 
+            addToast('Ошибка', 'Не удалось остановить торги', 'error'); 
+        }
+    };
+
+    // ПОЛНАЯ ОТМЕНА ТОРГОВ (Аннулирование аукциона)
+    const handleCancelLot = async (id) => {
+        if (!currentUser?.id) return addToast('Ошибка', 'Перезайдите в аккаунт', 'error');
+        if (!window.confirm('ВНИМАНИЕ: Вы уверены, что хотите ОТМЕНИТЬ этот аукцион? Все ставки участников будут аннулированы, лот закроется без победителя.')) return;
+        
+        try {
+            const res = await fetch(`/api/lots/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'cancelled', adminId: currentUser.id })
+            });
+            if (res.ok) {
+                addToast('Торги отменены', 'Аукцион успешно аннулирован.', 'success');
+            }
+        } catch (e) { 
+            addToast('Ошибка', 'Не удалось отменить торги', 'error'); 
+        }
     };
 
     const handleUserAction = async (userId, action) => {
@@ -328,7 +369,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                 setSelectedFiles([]);
                 setInspectionFile(null);
                 setAvtotekaFile(null);
-                setActiveTab('scheduled');
+                setActiveTab('active'); // После создания перенаправляем на действующие
             } else {
                 addToast('Ошибка', 'Не удалось сохранить лот', 'error');
             }
@@ -372,17 +413,20 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                     <ClipboardList size={18}/> Входящие заявки
                     {leads.filter(l => l.status === 'new').length > 0 && <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px]">{leads.filter(l => l.status === 'new').length}</span>}
                 </button>
-                <button onClick={() => setActiveTab('users')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                    <Users size={18}/> Пользователи
-                </button>
-                <button onClick={() => { setActiveTab('create'); setEditLotId(null); setFormData(initialFormState); }} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'create' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                    {editLotId ? <><Edit3 size={18}/> Редактирование</> : <><PlusCircle size={18}/> Создать лот</>}
+                <button onClick={() => setActiveTab('active')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'active' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <PlayCircle size={18}/> Действующие торги <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px]">{activeLots.length}</span>
                 </button>
                 <button onClick={() => setActiveTab('scheduled')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'scheduled' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <CalendarClock size={18}/> Запланированные <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{scheduledLots.length}</span>
                 </button>
                 <button onClick={() => setActiveTab('archive')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'archive' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Archive size={18}/> Архив торгов <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{archivedLots.length}</span>
+                </button>
+                <button onClick={() => setActiveTab('users')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <Users size={18}/> Пользователи
+                </button>
+                <button onClick={() => { setActiveTab('create'); setEditLotId(null); setFormData(initialFormState); }} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'create' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    {editLotId ? <><Edit3 size={18}/> Редактирование</> : <><PlusCircle size={18}/> Создать лот</>}
                 </button>
                 <button onClick={() => setActiveTab('transactions')} className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === 'transactions' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Wallet size={18}/> Транзакции
@@ -397,6 +441,44 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm">
                 
+                {/* НОВАЯ ВКЛАДКА: ДЕЙСТВУЮЩИЕ ТОРГИ (УПРАВЛЕНИЕ И МОНИТОРИНГ) */}
+                {activeTab === 'active' && (
+                    <div className="space-y-4">
+                        {activeLots.length === 0 ? (
+                            <div className="text-center py-12 text-slate-500">Нет запущенных торгов в данный момент.</div>
+                        ) : activeLots.map(lot => (
+                            <div key={lot.id} className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-5 bg-slate-50 border border-slate-200 rounded-xl gap-4 hover:shadow-md transition">
+                                <div className="flex-1">
+                                    <div className="text-xs text-slate-400 mb-1">
+                                        Аукцион #{lot.auctionId} • Лот #{lot.lotNumber || lot.id} • Ставок: <span className="font-bold text-blue-600">{lot.bidsCount}</span>
+                                    </div>
+                                    <h4 className="font-bold text-slate-800 text-base">{lot.title}</h4>
+                                    <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                                        <span>Текущая цена: <b className="text-slate-900">{lot.currentPrice.toLocaleString('ru-RU')} ₽</b></span>
+                                        <span>Окончание: <b className="text-slate-700">{new Date(lot.endTime).toLocaleString('ru-RU')}</b></span>
+                                        {lot.reservePrice && <span>Резерв: <b className="text-slate-700">{lot.reservePrice.toLocaleString('ru-RU')} ₽</b></span>}
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end border-t lg:border-t-0 pt-3 lg:pt-0">
+                                    <button onClick={() => navigate('lot', lot.id)} className="text-blue-600 font-bold text-xs hover:underline px-2">
+                                        На сайт
+                                    </button>
+                                    <button onClick={() => handleEditLotClick(lot)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg transition flex items-center gap-1 text-xs font-bold px-3" title="Изменить цену, резерв или продлить время">
+                                        <Edit3 size={14} /> Изменить
+                                    </button>
+                                    <button onClick={() => handleStopLot(lot.id)} className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-lg transition text-xs font-bold px-3" title="Завершить прямо сейчас и зафиксировать победителя">
+                                        Остановить
+                                    </button>
+                                    <button onClick={() => handleCancelLot(lot.id)} className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg transition text-xs font-bold px-3" title="Снять лот с аукциона и аннулировать ставки">
+                                        <XCircle size={14} className="inline" /> Отменить
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* ВКЛАДКА ЗАЯВКИ (Лиды) */}
                 {activeTab === 'leads' && (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -442,6 +524,7 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                     </div>
                 )}
 
+                {/* ВКЛАДКА ПОЛЬЗОВАТЕЛИ */}
                 {activeTab === 'users' && (
                     <div className="space-y-4">
                         <div className="flex justify-end mb-4">
@@ -810,7 +893,10 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                             return (
                             <div key={lot.id} className="p-5 bg-slate-50 border border-slate-200 rounded-xl gap-4 flex flex-col md:flex-row md:items-start justify-between">
                                 <div className="flex-1">
-                                    <div className="text-xs text-slate-400 mb-1">Лот #{lot.lotNumber || lot.id} • Ставок: {lot.bidsCount}</div>
+                                    <div className="text-xs text-slate-400 mb-1">
+                                        Лот #{lot.lotNumber || lot.id} • Ставок: {lot.bidsCount} • 
+                                        Статус: {lot.status === 'cancelled' ? <span className="text-red-600 font-bold">ОТМЕНЕН</span> : <span className="text-green-600 font-bold">Завершен</span>}
+                                    </div>
                                     <h4 className="font-bold text-slate-800 mb-3">{lot.title}</h4>
                                     
                                     <div className="bg-white border border-slate-200 rounded-lg p-3 text-sm max-w-sm">
@@ -826,11 +912,13 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
                                 
                                 <div className="flex flex-col items-end gap-3 mt-4 md:mt-0 w-full md:w-auto">
                                     <div className="text-sm font-black text-slate-800 bg-white px-4 py-2 rounded-lg border border-slate-200 w-full text-center md:text-right">
-                                        Продано: {lot.currentPrice.toLocaleString('ru-RU')} ₽
+                                        Финальная: {lot.currentPrice.toLocaleString('ru-RU')} ₽
                                     </div>
-                                    <button onClick={() => handleGenerateReport(lot.id)} className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
-                                        <FileText size={16}/> Скачать отчет (PDF)
-                                    </button>
+                                    {lot.status !== 'cancelled' && (
+                                        <button onClick={() => handleGenerateReport(lot.id)} className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
+                                            <FileText size={16}/> Скачать отчет (PDF)
+                                        </button>
+                                    )}
                                     <button onClick={() => handleCopyLot(lot.id)} className="w-full text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 font-bold text-sm px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
                                         <Repeat size={16}/> Повторить лот
                                     </button>
