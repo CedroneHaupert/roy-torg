@@ -45,18 +45,55 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
 
   const handleBid = () => {
-    if (isArchived) return;
-    if (!currentUser) { openAuth(); return; }
-    if (currentUser.isBlocked) { addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error"); return; }
+    console.log("1. Клик по кнопке 'Сделать ставку'");
     
+    if (isArchived) {
+        console.log("2. Ошибка: Лот в архиве");
+        return;
+    }
+    if (!currentUser) {
+        console.log("2. Ошибка: Нет пользователя, открываем окно входа");
+        openAuth();
+        return;
+    }
+    
+    console.log("3. Юзер:", currentUser.phone, "| Баланс:", currentUser.depositBalance);
+
+    // Защита от заблокированных
+    if (currentUser.isBlocked) {
+        console.log("4. Ошибка: Пользователь заблокирован");
+        addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error");
+        return;
+    }
+    
+    // Проверка базового депозита (3000/5000) для не верифицированных
     const requiredDeposit = currentUser.userType === 'legal' ? 5000 : 3000;
     if (!currentUser.isVerified && currentUser.depositBalance < requiredDeposit) {
-      addToast("Доступ запрещен", `Для участия в торгах необходимо пополнить депозит на ${requiredDeposit.toLocaleString('ru-RU')} ₽ в Личном кабинете.`, "error");
-      navigate('profile');
-      return;
+        console.log("4. Ошибка: Недостаточно депозита");
+        addToast("Доступ запрещен", `Для участия в торгах необходимо пополнить депозит на ${requiredDeposit.toLocaleString('ru-RU')} ₽.`, "error");
+        navigate('profile');
+        return;
     }
 
-    socket.emit('placeBid', { lotId: lot.id, bidAmount: bidAmount, userId: currentUser.id });
+    // НОВАЯ ПРОВЕРКА: Хватает ли денег на саму ставку (49 руб)
+    if (currentUser.depositBalance < 49) {
+        console.log("4. Ошибка: Нет 49 рублей на оплату клика");
+        addToast("Недостаточно средств", "На балансе должно быть минимум 49 ₽ для оплаты шага ставки.", "error");
+        navigate('profile');
+        return;
+    }
+
+    console.log("5. Все проверки пройдены! Отправляем сокет на сервер:", {
+        lotId: lot.id,
+        bidAmount: bidAmount,
+        userId: currentUser.id
+    });
+
+    socket.emit('placeBid', {
+        lotId: lot.id,
+        bidAmount: bidAmount,
+        userId: currentUser.id
+    });
   };
 
   const toggleAutoBroker = () => {
