@@ -1,4 +1,4 @@
-require('dotenv').config(); // Загружаем секреты из файла .env
+require('dotenv').config();
 
 const express = require('express');
 const http = require('http');
@@ -16,8 +16,7 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// === 0. НАСТРОЙКА ХРАНИЛИЩА ФАЙЛОВ (MULTER) ===
-// Убеждаемся, что папка для загрузок существует
+// === 0. НАСТРОЙКА ХРАНИЛИЩА ФАЙЛОВ ===
 if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
     fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
 }
@@ -31,9 +30,8 @@ const storage = multer.diskStorage({
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
 });
-const upload = multer({ storage: storage });
 
-// Раздаем статику загрузок по прямому пути
+const upload = multer({ storage: storage });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // === 1. БАЗА ДАННЫХ ===
@@ -58,19 +56,21 @@ if (process.env.NODE_ENV === 'production') {
 const User = sequelize.define('User', {
     phone: { type: DataTypes.STRING, unique: true, allowNull: false },
     inn: { type: DataTypes.STRING, allowNull: true },
-    depositBalance: { type: DataTypes.INTEGER, defaultValue: 0 }, // Может быть отрицательным
+    depositBalance: { type: DataTypes.INTEGER, defaultValue: 0 },
     isVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false },
     passportPdf: { type: DataTypes.STRING, defaultValue: '' },
     companyPdf: { type: DataTypes.STRING, defaultValue: '' },
-    role: { type: DataTypes.STRING, defaultValue: 'user' }, // 'user', 'admin', 'superadmin'
-    userType: { type: DataTypes.STRING, defaultValue: 'individual' } // 'individual' (ФЛ), 'legal' (ЮЛ)
+    role: { type: DataTypes.STRING, defaultValue: 'user' }, 
+    userType: { type: DataTypes.STRING, defaultValue: 'individual' },
+    paymentToken: { type: DataTypes.STRING, allowNull: true } // Токен привязанной карты ЮKassa
 });
 
 const Lot = sequelize.define('Lot', {
     auctionId: { type: DataTypes.STRING, defaultValue: 'A-2026-05' },
     lotNumber: { type: DataTypes.STRING, allowNull: false },
     title: { type: DataTypes.STRING, allowNull: false },
+    category: { type: DataTypes.STRING, defaultValue: 'Тягачи' }, // Категория для каталога
     description: { type: DataTypes.TEXT, defaultValue: '' },
     year: { type: DataTypes.INTEGER, allowNull: true },
     mileage: { type: DataTypes.STRING, defaultValue: '' },
@@ -90,7 +90,11 @@ const Lot = sequelize.define('Lot', {
     avtotekaPdf: { type: DataTypes.STRING, defaultValue: '' },   
     status: { type: DataTypes.STRING, defaultValue: 'active' },
     sellerInn: { type: DataTypes.STRING, defaultValue: '' },
-    isSecurityChecked: { type: DataTypes.BOOLEAN, defaultValue: false }
+    isSecurityChecked: { type: DataTypes.BOOLEAN, defaultValue: false },
+    winnerId: { type: DataTypes.INTEGER, allowNull: true },
+    winnerPhone: { type: DataTypes.STRING, allowNull: true },
+    inspectionPaid: { type: DataTypes.BOOLEAN, defaultValue: false },
+    commissionPaid: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
 
 const Bid = sequelize.define('Bid', {
@@ -108,86 +112,91 @@ const AdminLog = sequelize.define('AdminLog', {
 });
 
 const Transaction = sequelize.define('Transaction', {
-    type: { type: DataTypes.STRING, allowNull: false }, // 'topup', 'withdraw', 'commission', 'penalty', 'bid_fee'
+    type: { type: DataTypes.STRING, allowNull: false },
     amount: { type: DataTypes.INTEGER, allowNull: false },
     description: { type: DataTypes.STRING, allowNull: true }
 });
 
-// НОВАЯ МОДЕЛЬ: Заявки (Лиды) с сайта
 const Lead = sequelize.define('Lead', {
-    type: { type: DataTypes.STRING, allowNull: false }, // 'sell' (Продажа), 'finance' (Софинансирование)
-    payload: { type: DataTypes.JSON, allowNull: false }, // Данные из формы (марка, год, контакты и тд)
-    status: { type: DataTypes.STRING, defaultValue: 'new' }, // 'new', 'processed', 'rejected'
+    type: { type: DataTypes.STRING, allowNull: false },
+    payload: { type: DataTypes.JSON, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'new' }, 
 });
 
-// Связи БД
-User.hasMany(Bid);
+// Связи
+User.hasMany(Bid); 
 Bid.belongsTo(User);
-Lot.hasMany(Bid);
+
+Lot.hasMany(Bid); 
 Bid.belongsTo(Lot);
 
-User.hasMany(AutoBid);
+User.hasMany(AutoBid); 
 AutoBid.belongsTo(User);
-Lot.hasMany(AutoBid);
+
+Lot.hasMany(AutoBid); 
 AutoBid.belongsTo(Lot);
 
-User.hasMany(AdminLog, { foreignKey: 'adminId' });
+User.hasMany(AdminLog, { foreignKey: 'adminId' }); 
 AdminLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 
-User.hasMany(Transaction);
+User.hasMany(Transaction); 
 Transaction.belongsTo(User);
 
-User.hasMany(Lead);
-Lead.belongsTo(User); // Пользователь может оставлять заявки
+User.hasMany(Lead); 
+Lead.belongsTo(User);
 
 const smsCodes = new Map();
 
-// --- Вспомогательные функции ---
+// --- Вспомогательная функция СМС ---
+async function sendSms(phone, message) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const SMS_RU_API_ID = process.env.SMS_RU_API_ID || '';
+    if (!SMS_RU_API_ID) {
+        console.log(`[СМС ЗАГЛУШКА] На ${phone}: ${message}`);
+        return;
+    }
+    try {
+        await fetch(`https://sms.ru/sms/send?api_id=${SMS_RU_API_ID}&to=${cleanPhone}&msg=${encodeURIComponent(message)}&json=1`);
+    } catch (e) {
+        console.error('Ошибка отправки СМС:', e);
+    }
+}
+
 async function logAdminAction(adminId, action, details) {
     if (!adminId) return;
-    try {
-        await AdminLog.create({ adminId, action, details });
-    } catch (e) {
-        console.error("Ошибка логирования действий админа:", e);
+    try { 
+        await AdminLog.create({ adminId, action, details }); 
+    } catch (e) { 
+        console.error("Ошибка логирования действий админа:", e); 
     }
 }
 
 async function recordTransaction(userId, type, amount, description) {
-    try {
-        await Transaction.create({ UserId: userId, type, amount, description });
-    } catch (e) {
-        console.error("Ошибка записи транзакции:", e);
+    try { 
+        await Transaction.create({ UserId: userId, type, amount, description }); 
+    } catch (e) { 
+        console.error("Ошибка записи транзакции:", e); 
     }
 }
 
 // === 3. REST API ===
 
-// Мульти-загрузка: фото + PDF
 app.post('/api/upload', upload.fields([
     { name: 'photos', maxCount: 30 },
     { name: 'inspectionPdf', maxCount: 1 },
     { name: 'avtotekaPdf', maxCount: 1 }
 ]), (req, res) => {
     try {
-        console.log('📥 Поступил запрос на загрузку файлов лота:', req.files);
-        
         const photoUrls = req.files['photos'] ? req.files['photos'].map(file => `/uploads/${file.filename}`) : [];
         const inspectionUrl = req.files['inspectionPdf'] ? `/uploads/${req.files['inspectionPdf'][0].filename}` : '';
         const avtotekaUrl = req.files['avtotekaPdf'] ? `/uploads/${req.files['avtotekaPdf'][0].filename}` : '';
-
-        res.json({ 
-            success: true, 
-            urls: photoUrls, 
-            inspectionPdf: inspectionUrl, 
-            avtotekaPdf: avtotekaUrl 
-        });
-    } catch (error) {
-        console.error('❌ Ошибка upload:', error);
-        res.status(500).json({ error: 'Ошибка при сохранении файлов' });
+        res.json({ success: true, urls: photoUrls, inspectionPdf: inspectionUrl, avtotekaPdf: avtotekaUrl });
+    } catch (error) { 
+        console.error('Ошибка upload:', error);
+        res.status(500).json({ error: 'Ошибка сохранения файлов' }); 
     }
 });
 
-// Загрузка документов пользователя
 app.post('/api/user/:id/documents', upload.fields([
     { name: 'passportPdf', maxCount: 1 },
     { name: 'companyPdf', maxCount: 1 }
@@ -195,19 +204,28 @@ app.post('/api/user/:id/documents', upload.fields([
     try {
         const user = await User.findByPk(req.params.id);
         if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-
         if (req.files['passportPdf']) user.passportPdf = `/uploads/${req.files['passportPdf'][0].filename}`;
         if (req.files['companyPdf']) user.companyPdf = `/uploads/${req.files['companyPdf'][0].filename}`;
-        
         await user.save();
         res.json({ success: true, user });
-    } catch (error) {
-        console.error('❌ Ошибка загрузки документов:', error);
-        res.status(500).json({ error: 'Ошибка при сохранении документов' });
+    } catch (error) { 
+        console.error('Ошибка сохранения документов:', error);
+        res.status(500).json({ error: 'Ошибка сохранения' }); 
     }
 });
 
-// АВТОРИЗАЦИЯ
+// НОВЫЙ ЭНДПОИНТ: Получение свежих данных юзера (чтобы баланс обновился после возврата с ЮKassa)
+app.get('/api/user/:id', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error('Ошибка получения профиля:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
 app.post('/api/auth/send-code', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Номер телефона обязателен' });
@@ -215,41 +233,33 @@ app.post('/api/auth/send-code', async (req, res) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     smsCodes.set(phone, code); 
-
-    console.log(`\n=============================`);
-    console.log(`📩 [СМС ШЛЮЗ] Код ${code} для ${phone}`);
-    console.log(`=============================\n`);
+    console.log(`📩 СМС Код ${code} для ${phone}`);
 
     try {
         const SMS_RU_API_ID = process.env.SMS_RU_API_ID || ''; 
-        if (!SMS_RU_API_ID) {
-            console.log('⚠️ Ключ SMS_RU_API_ID не задан в .env. Режим демо (введите 0000)');
-            return res.json({ success: true, message: 'Тестовый режим (введите 0000)' });
-        }
-
+        if (!SMS_RU_API_ID) return res.json({ success: true, message: 'Тестовый режим (введите 0000)' });
+        
         const response = await fetch(`https://sms.ru/sms/send?api_id=${SMS_RU_API_ID}&to=${cleanPhone}&msg=${code}&json=1`);
         const data = await response.json();
-
+        
         if (data.status === "OK") {
             res.json({ success: true, message: 'СМС отправлено' });
         } else {
-            console.error('❌ Ошибка от sms.ru:', data);
-            res.json({ success: true, message: 'Ошибка шлюза. Включен резервный режим демо (0000)' });
+            console.error('Ошибка шлюза:', data);
+            res.json({ success: true, message: 'Ошибка шлюза (0000)' });
         }
-    } catch (error) {
-        console.error('Ошибка сети при отправке СМС:', error.message);
-        res.json({ success: true, message: 'Локальный режим (введите 0000)' });
+    } catch (error) { 
+        console.error('Сбой сети при СМС:', error);
+        res.json({ success: true, message: 'Локальный режим (0000)' }); 
     }
 });
 
 app.post('/api/auth/verify', async (req, res) => {
     const { phone, code } = req.body;
-    if (!phone || !code) return res.status(400).json({ error: 'Телефон и код обязательны' });
+    if (!phone || !code) return res.status(400).json({ error: 'Заполните поля' });
 
     const savedCode = smsCodes.get(phone);
-    if (savedCode !== code && code !== '0000') {
-        return res.status(400).json({ error: 'Неверный код подтверждения' });
-    }
+    if (savedCode !== code && code !== '0000') return res.status(400).json({ error: 'Неверный код' });
 
     try {
         const [user, created] = await User.findOrCreate({
@@ -257,98 +267,159 @@ app.post('/api/auth/verify', async (req, res) => {
             defaults: { depositBalance: 0, isVerified: false, isBlocked: false, role: 'user', userType: 'individual' }
         });
 
-        // 👑 СУПЕРАДМИН (Назначается автоматически при входе с этого номера)
+        // 👑 СУПЕРАДМИН
         if (phone === '+7 (917) 207-49-39') {
             user.role = 'superadmin';
             user.isVerified = true;
             await user.save();
-            await logAdminAction(user.id, 'SYSTEM', 'Суперадмин успешно авторизован');
         }
 
-        if (user.isBlocked) {
-            return res.status(403).json({ error: 'Ваш аккаунт заблокирован администратором' });
-        }
-
+        if (user.isBlocked) return res.status(403).json({ error: 'Аккаунт заблокирован' });
+        
         smsCodes.delete(phone);
-        res.json({ success: true, message: created ? 'Пользователь зарегистрирован' : 'Успешный вход', user });
-    } catch (error) {
+        res.json({ success: true, message: 'Успешный вход', user });
+    } catch (error) { 
         console.error('Ошибка авторизации:', error);
-        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+        res.status(500).json({ error: 'Ошибка сервера' }); 
     }
 });
 
-// ПОПОЛНЕНИЕ БАЛАНСА И СТАТУСЫ (3000 для ФЛ, 5000 для ЮЛ)
-app.post('/api/topup', async (req, res) => {
+// ==========================================
+// 💳 ИНТЕГРАЦИЯ ЮKASSA
+// ==========================================
+app.post('/api/payment/create', async (req, res) => {
     try {
-        const { userId, amount, userType } = req.body;
+        const { userId, amount, userType, returnUrl, paymentType, lotId } = req.body;
         const user = await User.findByPk(userId);
-        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-        if (user.isBlocked) return res.status(403).json({ error: 'Действие запрещено. Аккаунт заблокирован.' });
+        if (!user || user.isBlocked) return res.status(403).json({ error: 'Доступ запрещен' });
 
-        if (userType) user.userType = userType; // Обновляем тип пользователя при оплате
-        
-        user.depositBalance += Number(amount);
-        
-        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-        if (user.depositBalance >= requiredDeposit) user.isVerified = true;
-        
-        await user.save();
+        const shopId = process.env.YOOKASSA_SHOP_ID;
+        const secretKey = process.env.YOOKASSA_SECRET_KEY;
+        if (!shopId || !secretKey) return res.status(500).json({ error: 'ЮKassa не настроена' });
 
-        await recordTransaction(user.id, 'topup', Number(amount), `Пополнение депозита (${user.userType === 'legal' ? 'ЮЛ' : 'ФЛ'})`);
+        const authHeader = 'Basic ' + Buffer.from(`${shopId}:${secretKey}`).toString('base64');
+        const idempotenceKey = Date.now().toString() + userId + Math.random();
+        
+        let description = `Внесение гарантийного депозита РОЙ ТОРГ (${user.phone})`;
+        if (paymentType === 'inspection') description = `Оплата осмотра техники (Лот ${lotId}) - ${user.phone}`;
 
-        res.json({ success: true, user });
-    } catch (error) {
-        console.error('Ошибка пополнения:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        const yooResponse = await fetch('https://api.yookassa.ru/v3/payments', {
+            method: 'POST',
+            headers: { 
+                'Authorization': authHeader, 
+                'Idempotence-Key': idempotenceKey, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                amount: { value: `${amount}.00`, currency: 'RUB' },
+                capture: true, 
+                confirmation: { 
+                    type: 'redirect', 
+                    return_url: returnUrl || 'https://roy-torg.ru' 
+                },
+                description: description,
+                metadata: { userId: user.id, userType: userType, paymentType: paymentType || 'deposit', lotId: lotId || null }
+            })
+        });
+
+        const paymentData = await yooResponse.json();
+        if (paymentData.confirmation && paymentData.confirmation.confirmation_url) {
+            res.json({ success: true, url: paymentData.confirmation.confirmation_url });
+        } else {
+            console.error('Ошибка от ЮKassa:', paymentData);
+            res.status(500).json({ error: 'Ошибка платежного шлюза' });
+        }
+    } catch (error) { 
+        console.error('Ошибка создания платежа:', error);
+        res.status(500).json({ error: 'Ошибка сервера' }); 
     }
 });
 
-// НОВЫЙ РОУТ: СОЗДАНИЕ ЗАЯВКИ (Лида) с сайта (Форма продажи / Софинансирование)
+app.post('/api/payment/webhook', async (req, res) => {
+    try {
+        const event = req.body;
+        if (event.event === 'payment.succeeded') {
+            const payment = event.object;
+            const userId = payment.metadata.userId;
+            const userType = payment.metadata.userType;
+            const paymentType = payment.metadata.paymentType;
+            const lotId = payment.metadata.lotId;
+            const amount = Number(payment.amount.value);
+
+            const user = await User.findByPk(userId);
+            if (user) {
+                if (paymentType === 'inspection' && lotId) {
+                    const lot = await Lot.findByPk(lotId);
+                    if (lot) {
+                        lot.inspectionPaid = true;
+                        await lot.save();
+                        await recordTransaction(user.id, 'inspection_fee', -amount, `Оплата осмотра (Лот ${lot.lotNumber})`);
+                        io.emit('updateLots', await Lot.findAll({ include: [Bid] }));
+                    }
+                } else {
+                    user.userType = userType || user.userType;
+                    user.depositBalance += amount;
+                    
+                    const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+                    if (user.depositBalance >= requiredDeposit) user.isVerified = true;
+                    
+                    await user.save();
+                    await recordTransaction(user.id, 'topup', amount, `Оплата по ЮKassa (${payment.id})`);
+                }
+            }
+        }
+        res.status(200).send('OK'); 
+    } catch (error) { 
+        console.error('Ошибка Webhook ЮKassa:', error);
+        res.status(500).send('Error'); 
+    }
+});
+
+// ==========================================
+// ЛИДЫ (ЗАЯВКИ)
+// ==========================================
 app.post('/api/leads', async (req, res) => {
     try {
         const { type, payload, userId } = req.body;
-        const lead = await Lead.create({ 
-            type, 
-            payload, 
-            UserId: userId || null 
-        });
+        const lead = await Lead.create({ type, payload, UserId: userId || null });
         res.json({ success: true, lead });
-    } catch (error) {
+    } catch (error) { 
         console.error('Ошибка создания лида:', error);
-        res.status(500).json({ error: 'Ошибка сервера при сохранении заявки' });
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ИСТОРИЯ СТАВОК ЮЗЕРА
 app.get('/api/user/:userId/bids', async (req, res) => {
     try {
-        const bids = await Bid.findAll({ where: { UserId: req.params.userId }, include: [{ model: Lot, include: [Bid] }] });
+        const bids = await Bid.findAll({ 
+            where: { UserId: req.params.userId }, 
+            include: [{ model: Lot, include: [Bid] }] 
+        });
         const lotsMap = new Map();
-        bids.forEach(b => { if(b.Lot && !lotsMap.has(b.Lot.id)) lotsMap.set(b.Lot.id, b.Lot); });
+        bids.forEach(b => { 
+            if(b.Lot && !lotsMap.has(b.Lot.id)) lotsMap.set(b.Lot.id, b.Lot); 
+        });
         res.json({ success: true, lots: Array.from(lotsMap.values()) });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+    } catch (error) { 
+        console.error('Ошибка получения ставок юзера:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ==========================================
-// 🛡️ АДМИНСКИЕ РОУТЫ (RBAC + ЛОГИРОВАНИЕ)
-// ==========================================
-
-// ПОЛУЧЕНИЕ ВСЕХ ЗАЯВОК (Для админки)
+// === АДМИНКА ===
 app.get('/api/admin/leads', async (req, res) => {
     try {
-        const leads = await Lead.findAll({
-            include: [{ model: User, attributes: ['phone', 'userType'] }],
-            order: [['createdAt', 'DESC']]
+        const leads = await Lead.findAll({ 
+            include: [{ model: User, attributes: ['phone', 'userType'] }], 
+            order: [['createdAt', 'DESC']] 
         });
         res.json({ success: true, leads });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка получения заявок' });
+    } catch (error) { 
+        console.error('Ошибка получения лидов:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ОБНОВЛЕНИЕ СТАТУСА ЗАЯВКИ
 app.patch('/api/admin/leads/:id/status', async (req, res) => {
     try {
         const { status, adminId } = req.body;
@@ -357,45 +428,17 @@ app.patch('/api/admin/leads/:id/status', async (req, res) => {
 
         lead.status = status;
         await lead.save();
-        await logAdminAction(adminId, 'UPDATE_LEAD', `Обновлен статус заявки #${lead.id} на ${status}`);
-
         res.json({ success: true, lead });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+    } catch (error) { 
+        console.error('Ошибка статуса лида:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ШТРАФ ПОЛЬЗОВАТЕЛЯ (Отказ от покупки)
-app.post('/api/admin/users/:id/penalty', async (req, res) => {
-    try {
-        const { adminId, amount = 3000, reason } = req.body;
-        const user = await User.findByPk(req.params.id);
-        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-
-        user.depositBalance -= Number(amount);
-        
-        // Если баланс ушел ниже требуемого порога, снимаем верификацию
-        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-        if (user.depositBalance < requiredDeposit) {
-            user.isVerified = false;
-        }
-
-        await user.save();
-
-        await recordTransaction(user.id, 'penalty', -Number(amount), `Штраф платформы: ${reason}`);
-        await logAdminAction(adminId, 'PENALTY_USER', `Пользователю ${user.phone} выписан штраф ${amount} ₽. Причина: ${reason}`);
-
-        res.json({ success: true, user });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
-});
-
-// СОЗДАНИЕ ЛОТА (Админом)
 app.post('/api/lots', async (req, res) => {
     try {
         const { 
-            auctionId, lotNumber, title, description, year, mileage, 
+            auctionId, lotNumber, title, category, description, year, mileage, 
             currentPrice, minStep, reservePrice, estimatedValue, hasNds, 
             duration, durationType, startTime, images, mechanicRating, videoUrl,
             inspectionPdf, avtotekaPdf, sellerInn, isSecurityChecked, adminId
@@ -405,488 +448,461 @@ app.post('/api/lots', async (req, res) => {
         const durationMs = durationType === 'hours' ? Number(duration) * 60 * 60 * 1000 : Number(duration) * 24 * 60 * 60 * 1000;
         
         const newLot = await Lot.create({
-            auctionId: auctionId || 'A-2026-05',
+            auctionId: auctionId || `A-${new Date().getFullYear()}`,
             lotNumber: lotNumber || `L-${Math.floor(10000 + Math.random() * 90000)}`,
-            title, description, year: year ? Number(year) : null, mileage,
-            currentPrice: Number(currentPrice), minStep: Number(minStep) || 50000,
-            reservePrice: reservePrice ? Number(reservePrice) : null,
+            title, 
+            category: category || 'Тягачи', 
+            description, 
+            year: year ? Number(year) : null, 
+            mileage,
+            currentPrice: Number(currentPrice), 
+            minStep: Number(minStep) || 50000,
+            reservePrice: reservePrice ? Number(reservePrice) : null, 
             estimatedValue: estimatedValue ? Number(estimatedValue) : null,
-            startTime: startTime ? new Date(startTime) : null,
+            startTime: startTime ? new Date(startTime) : null, 
             endTime: new Date(start + durationMs),
-            hasNds,
-            imageUrl: (images && images.length > 0) ? images[0] : '',
+            hasNds, 
+            imageUrl: (images && images.length > 0) ? images[0] : '', 
             images: images || [],
-            inspectionPdf: inspectionPdf || '',
+            inspectionPdf: inspectionPdf || '', 
             avtotekaPdf: avtotekaPdf || '',
-            status: 'active',
+            status: 'active', 
             mechanicRating: mechanicRating ? Number(mechanicRating) : 8,
-            videoUrl: videoUrl || '',
-            sellerInn: sellerInn || '',
+            videoUrl: videoUrl || '', 
+            sellerInn: sellerInn || '', 
             isSecurityChecked: isSecurityChecked || false
         });
 
-        if (adminId) await logAdminAction(adminId, 'CREATE_LOT', `Создан лот: ${newLot.lotNumber} - ${newLot.title}`);
-
+        if (adminId) await logAdminAction(adminId, 'CREATE_LOT', `Создан лот: ${newLot.lotNumber}`);
+        
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
         res.json({ success: true, lot: newLot });
-    } catch (error) {
+    } catch (error) { 
         console.error('Ошибка создания лота:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.status(500).json({ error: 'Ошибка сервера' }); 
     }
 });
 
-// РЕДАКТИРОВАНИЕ ЛОТА (Только если он запланирован или активен)
 app.put('/api/lots/:id', async (req, res) => {
     try {
         const { adminId, ...updates } = req.body;
         const lot = await Lot.findByPk(req.params.id);
         if (!lot) return res.status(404).json({ error: 'Лот не найден' });
-        
+
         await lot.update(updates);
         if (adminId) await logAdminAction(adminId, 'EDIT_LOT', `Отредактирован лот: ${lot.lotNumber}`);
-
+        
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
         res.json({ success: true, lot });
-    } catch (error) {
-        console.error('Ошибка редактирования:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
+    } catch (error) { 
+        console.error('Ошибка редактирования лота:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ДУБЛИРОВАНИЕ ЛОТА
+// НОВЫЙ РОУТ: Подтверждение оплат Админом вручную
+app.patch('/api/admin/lots/:id/payment-status', async (req, res) => {
+    try {
+        const { inspectionPaid, commissionPaid, adminId } = req.body;
+        const lot = await Lot.findByPk(req.params.id);
+        if (!lot) return res.status(404).json({ error: 'Лот не найден' });
+
+        if (inspectionPaid !== undefined) lot.inspectionPaid = inspectionPaid;
+        if (commissionPaid !== undefined) lot.commissionPaid = commissionPaid;
+        await lot.save();
+        
+        if (adminId) await logAdminAction(adminId, 'UPDATE_LOT_PAYMENT', `Изменен статус оплат лота: ${lot.lotNumber}`);
+        
+        io.emit('updateLots', await Lot.findAll({ include: [Bid] }));
+        res.json({ success: true, lot });
+    } catch (error) { 
+        console.error('Ошибка статуса оплат:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
+    }
+});
+
 app.post('/api/lots/:id/copy', async (req, res) => {
     try {
         const { adminId } = req.body; 
         const oldLot = await Lot.findByPk(req.params.id);
         if (!oldLot) return res.status(404).json({ error: 'Лот не найден' });
-        
-        const newLot = await Lot.create({
-            ...oldLot.toJSON(), id: undefined,
-            lotNumber: `L-${Math.floor(10000 + Math.random() * 90000)} (копия)`,
-            title: oldLot.title + ' (повтор)',
-            endTime: new Date(Date.now() + 86400000), status: 'active'
-        });
 
-        if (adminId) await logAdminAction(adminId, 'COPY_LOT', `Лот ${oldLot.lotNumber} скопирован в ${newLot.lotNumber}`);
+        // Жестко планируем на неделю вперед, чтобы лот гарантированно упал в "Запланированные"
+        const newStart = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
+        const newEnd = new Date(newStart.getTime() + 3 * 24 * 60 * 60 * 1000); // Торги на 3 дня
+        
+        const newLot = await Lot.create({ 
+            ...oldLot.toJSON(), 
+            id: undefined, 
+            lotNumber: `L-${Math.floor(10000 + Math.random() * 90000)}`, 
+            startTime: newStart,
+            endTime: newEnd, 
+            status: 'active',
+            bidsCount: 0,
+            winnerId: null,
+            winnerPhone: null,
+            inspectionPaid: false,
+            commissionPaid: false
+        });
+        
+        if (adminId) await logAdminAction(adminId, 'COPY_LOT', `Скопирован лот ${oldLot.lotNumber}`);
 
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
         res.json({ success: true, lot: newLot });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка при копировании' });
+    } catch (error) { 
+        console.error('Ошибка копирования лота:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ПОЛУЧИТЬ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Для админки)
 app.get('/api/admin/users', async (req, res) => {
-    try {
-        const users = await User.findAll({
-            order: [['createdAt', 'DESC']],
-            attributes: { exclude: ['updatedAt'] }
-        });
-        res.json({ success: true, users });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+    try { 
+        res.json({ success: true, users: await User.findAll({ order: [['createdAt', 'DESC']] }) }); 
+    } catch (error) { 
+        console.error('Ошибка получения пользователей:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// БЛОКИРОВКА / ВЕРИФИКАЦИЯ (Админом)
 app.patch('/api/admin/users/:id/action', async (req, res) => {
     try {
         const { action, adminId } = req.body; 
         const user = await User.findByPk(req.params.id);
-        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        if (!user) return res.status(404).json({ error: 'Юзер не найден' });
 
         if (action === 'verify') {
             user.isVerified = !user.isVerified;
-            await logAdminAction(adminId, user.isVerified ? 'VERIFY_USER' : 'UNVERIFY_USER', `Верификация изменена у ${user.phone}`);
         } else if (action === 'block') {
-            if (user.role === 'superadmin') return res.status(403).json({ error: 'Нельзя заблокировать Суперадминистратора' });
+            if (user.role === 'superadmin') return res.status(403).json({ error: 'Нельзя блок Суперадмина' });
             user.isBlocked = !user.isBlocked;
-            await logAdminAction(adminId, user.isBlocked ? 'BLOCK_USER' : 'UNBLOCK_USER', `Блокировка изменена у ${user.phone}`);
         }
-        
         await user.save();
-        const users = await User.findAll({ order: [['createdAt', 'DESC']] });
-        res.json({ success: true, users });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.json({ success: true, users: await User.findAll({ order: [['createdAt', 'DESC']] }) });
+    } catch (error) { 
+        console.error('Ошибка изменения статуса:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// НАЗНАЧЕНИЕ РОЛЕЙ (Только Суперадмин)
 app.patch('/api/admin/users/:id/role', async (req, res) => {
     try {
         const { role, adminId } = req.body; 
         const superAdmin = await User.findByPk(adminId);
-        if (!superAdmin || superAdmin.role !== 'superadmin') {
-            return res.status(403).json({ error: 'Нет прав. Только Суперадмин может назначать администраторов.' });
-        }
+        if (!superAdmin || superAdmin.role !== 'superadmin') return res.status(403).json({ error: 'Нет прав' });
 
         const user = await User.findByPk(req.params.id);
-        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-        if (user.id === superAdmin.id) return res.status(403).json({ error: 'Нельзя изменить роль самому себе' });
+        if (!user) return res.status(404).json({ error: 'Юзер не найден' });
 
+        if (user.id === superAdmin.id) return res.status(403).json({ error: 'Себе нельзя' });
+        
         user.role = role;
         await user.save();
-        
-        await logAdminAction(adminId, 'CHANGE_ROLE', `Пользователю ${user.phone} назначена роль: ${role}`);
-
-        const users = await User.findAll({ order: [['createdAt', 'DESC']] });
-        res.json({ success: true, users });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.json({ success: true, users: await User.findAll({ order: [['createdAt', 'DESC']] }) });
+    } catch (error) { 
+        console.error('Ошибка назначения роли:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ПРОСМОТР ЛОГОВ АДМИНОВ (Только Суперадмин)
 app.get('/api/admin/logs', async (req, res) => {
     try {
-        const adminId = req.query.adminId;
-        const superAdmin = await User.findByPk(adminId);
-        if (!superAdmin || superAdmin.role !== 'superadmin') return res.status(403).json({ error: 'Доступ запрещен' });
-
-        const logs = await AdminLog.findAll({
-            include: [{ model: User, as: 'Admin', attributes: ['phone', 'role'] }],
-            order: [['createdAt', 'DESC']],
-            limit: 500
+        const superAdmin = await User.findByPk(req.query.adminId);
+        if (!superAdmin || superAdmin.role !== 'superadmin') return res.status(403).json({ error: 'Запрещено' });
+        
+        const logs = await AdminLog.findAll({ 
+            include: [{ model: User, as: 'Admin', attributes: ['phone', 'role'] }], 
+            order: [['createdAt', 'DESC']] 
         });
         res.json({ success: true, logs });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+    } catch (error) { 
+        console.error('Ошибка получения логов:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ПРОСМОТР ФИНАНСОВЫХ ТРАНЗАКЦИЙ (Админ)
 app.get('/api/admin/transactions', async (req, res) => {
-    try {
-        const transactions = await Transaction.findAll({
-            include: [{ model: User, attributes: ['phone', 'inn', 'userType'] }],
-            order: [['createdAt', 'DESC']],
-            limit: 1000
-        });
-        res.json({ success: true, transactions });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка сервера' });
+    try { 
+        res.json({ 
+            success: true, 
+            transactions: await Transaction.findAll({ include: [{ model: User }], order: [['createdAt', 'DESC']] }) 
+        }); 
+    } catch (error) { 
+        console.error('Ошибка получения транзакций:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// ВЫГРУЗКА В EXCEL: Список пользователей
 app.get('/api/admin/export/users', async (req, res) => {
     try {
         const users = await User.findAll({ order: [['createdAt', 'DESC']] });
-        
-        let csvContent = '\uFEFF'; 
-        csvContent += 'ID;Телефон;ИНН;Тип;Депозит (руб);Роль;Верифицирован;Заблокирован;Дата регистрации\n';
-        
-        users.forEach(u => {
-            const date = new Date(u.createdAt).toLocaleDateString('ru-RU');
-            const typeLabel = u.userType === 'legal' ? 'ЮЛ' : 'ФЛ';
-            csvContent += `${u.id};${u.phone};${u.inn || 'Нет'};${typeLabel};${u.depositBalance};${u.role};${u.isVerified ? 'Да' : 'Нет'};${u.isBlocked ? 'Да' : 'Нет'};${date}\n`;
+        let csvContent = '\uFEFFID;Телефон;ИНН;Тип;Депозит;Роль;Верифицирован;Заблокирован;Регистрация\n';
+        users.forEach(u => { 
+            csvContent += `${u.id};${u.phone};${u.inn || 'Нет'};${u.userType};${u.depositBalance};${u.role};${u.isVerified ? 'Да' : 'Нет'};${u.isBlocked ? 'Да' : 'Нет'};${new Date(u.createdAt).toLocaleDateString('ru-RU')}\n`; 
         });
-
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="roytorg_users.csv"');
         res.send(csvContent);
-    } catch (error) {
-        res.status(500).send('Ошибка генерации файла');
+    } catch (error) { 
+        console.error('Ошибка экспорта:', error);
+        res.status(500).send('Ошибка'); 
     }
 });
 
-// ВЫГРУЗКА ЛОТА В PDF: Подготовка структурированных данных
 app.get('/api/admin/lot-report/:id', async (req, res) => {
     try {
-        const lot = await Lot.findByPk(req.params.id, {
-            include: [{ model: Bid, include: [User] }]
-        });
+        const lot = await Lot.findByPk(req.params.id, { include: [{ model: Bid, include: [User] }] });
         if (!lot) return res.status(404).json({ error: 'Лот не найден' });
 
         const sortedBids = lot.Bids.sort((a, b) => b.amount - a.amount);
-        
-        const reportData = {
-            auctionId: lot.auctionId,
-            lotNumber: lot.lotNumber,
-            title: lot.title,
-            year: lot.year,
-            mileage: lot.mileage,
-            sellerInn: lot.sellerInn || 'Не указан',
-            minReserve: lot.reservePrice || 'Отсутствует',
-            estimatedValue: lot.estimatedValue || 'Не указана',
-            finalPrice: lot.currentPrice,
-            status: lot.status,
-            endDate: new Date(lot.endTime).toLocaleString('ru-RU'),
-            bidsHistory: sortedBids.map(b => ({
-                amount: b.amount,
-                phone: b.userPhone,
-                time: new Date(b.createdAt).toLocaleString('ru-RU')
-            }))
-        };
-        
-        res.json({ success: true, report: reportData });
-    } catch (error) {
-        res.status(500).json({ error: 'Ошибка формирования отчета' });
+        res.json({ 
+            success: true, 
+            report: { 
+                auctionId: lot.auctionId, 
+                lotNumber: lot.lotNumber, 
+                title: lot.title, 
+                year: lot.year, 
+                mileage: lot.mileage, 
+                sellerInn: lot.sellerInn || 'Не указан', 
+                minReserve: lot.reservePrice || 'Отсутствует', 
+                estimatedValue: lot.estimatedValue || 'Не указана', 
+                finalPrice: lot.currentPrice, 
+                status: lot.status, 
+                endDate: new Date(lot.endTime).toLocaleString('ru-RU'), 
+                bidsHistory: sortedBids.map(b => ({ amount: b.amount, phone: b.userPhone, time: new Date(b.createdAt).toLocaleString('ru-RU') })) 
+            } 
+        });
+    } catch (error) { 
+        console.error('Ошибка отчета PDF:', error);
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-// СТАТИСТИКА (Дашборд)
 app.get('/api/admin/stats', async (req, res) => {
     try {
-        const totalUsers = await User.count();
-        const activeLots = await Lot.count({ where: { status: 'active' } });
+        const totalUsers = await User.count(); 
+        const activeLots = await Lot.count({ where: { status: 'active' } }); 
         const completedLots = await Lot.count({ where: { status: 'completed' } });
-        
-        const frequentBidders = await Bid.count({
-            attributes: ['userPhone'],
-            group: ['userPhone'],
-            having: sequelize.where(sequelize.fn('count', sequelize.col('id')), '>', 3)
+        const frequentBidders = await Bid.count({ 
+            attributes: ['userPhone'], 
+            group: ['userPhone'], 
+            having: sequelize.where(sequelize.fn('count', sequelize.col('id')), '>', 3) 
         });
-
         res.json({ totalUsers, activeLots, completedLots, frequentBidders: frequentBidders.length });
-    } catch (error) {
+    } catch (error) { 
         console.error('Ошибка статистики:', error);
-        res.status(500).json({ error: 'Ошибка statistics' });
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
-
-// === 4. ЛОГИКА АВТОБРОКЕРА ===
+// === 4. АВТОБРОКЕР ===
 async function triggerAutoBids(lotId) {
-    const lot = await Lot.findByPk(lotId);
-    if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return;
+    try {
+        const lot = await Lot.findByPk(lotId);
+        if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return;
 
-    const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
-    const prevLeaderId = latestBid ? latestBid.UserId : null;
+        const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
+        const prevLeaderId = latestBid ? latestBid.UserId : null;
 
-    const autoBids = await AutoBid.findAll({ where: { LotId: lot.id } });
-    const competingAutoBids = autoBids.filter(ab => ab.UserId !== prevLeaderId);
-    
-    if (competingAutoBids.length === 0) return; 
+        const autoBids = await AutoBid.findAll({ where: { LotId: lot.id } });
+        const competingAutoBids = autoBids.filter(ab => ab.UserId !== prevLeaderId);
+        if (competingAutoBids.length === 0) return; 
 
-    competingAutoBids.sort((a, b) => b.maxAmount - a.maxAmount);
-    const bestAutoBid = competingAutoBids[0];
-    const requiredBid = lot.currentPrice + lot.minStep;
+        competingAutoBids.sort((a, b) => b.maxAmount - a.maxAmount);
+        const bestAutoBid = competingAutoBids[0];
+        const requiredBid = lot.currentPrice + lot.minStep;
 
-    if (bestAutoBid.maxAmount >= requiredBid) {
-        const user = await User.findByPk(bestAutoBid.UserId);
-        if (user.isBlocked) return;
-        
-        // Блокировка автоброкера при минусовом балансе или если не хватает на 49 руб
-        if (user.depositBalance < 49) return; 
+        if (bestAutoBid.maxAmount >= requiredBid) {
+            const user = await User.findByPk(bestAutoBid.UserId);
+            if (user.isBlocked || user.depositBalance < 49) return; 
 
-        lot.currentPrice = requiredBid;
-        lot.bidsCount += 1;
-        const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
-        if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
-        await lot.save();
+            lot.currentPrice = requiredBid; 
+            lot.bidsCount += 1;
+            const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
+            if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
+            await lot.save();
 
-        // Списание 49 рублей за работу автоброкера
-        user.depositBalance -= 49;
-        
-        // Перепроверка верификации
-        const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-        if (user.depositBalance < requiredDeposit) user.isVerified = false;
+            user.depositBalance -= 49;
+            const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
+            if (user.depositBalance < requiredDeposit) user.isVerified = false;
+            await user.save();
+            
+            await recordTransaction(user.id, 'bid_fee', -49, `Комиссия автоброкера (Лот ${lot.lotNumber})`);
 
-        await user.save();
-        await recordTransaction(user.id, 'bid_fee', -49, `Комиссия автоброкера (Лот ${lot.lotNumber})`);
-
-        await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
-
-        const updatedLots = await Lot.findAll({ include: [Bid] });
-        io.emit('updateLots', updatedLots);
-
-        if (prevLeaderId && prevLeaderId !== user.id) {
-            io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: requiredBid });
+            await Bid.create({ amount: requiredBid, LotId: lot.id, UserId: user.id, userPhone: user.phone });
+            
+            io.emit('updateLots', await Lot.findAll({ include: [Bid] }));
+            if (prevLeaderId && prevLeaderId !== user.id) {
+                io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: requiredBid });
+                // СМС при перебитой ставке
+                const prevUser = await User.findByPk(prevLeaderId);
+                if (prevUser) sendSms(prevUser.phone, `ТОРГИ: Ваша ставка на лот ${lot.lotNumber} перебита. Новая цена: ${requiredBid} руб.`);
+            }
+            await triggerAutoBids(lot.id);
         }
-        await triggerAutoBids(lot.id);
+    } catch (err) {
+        console.error('Ошибка в логике Автоброкера:', err);
     }
 }
 
-// === 5. ЛОГИКА СОКЕТОВ ===
+// === 5. СОКЕТЫ ===
 io.on('connection', async (socket) => {
-    console.log(`⚡ Подключился пользователь: ${socket.id}`);
-
-    try {
-        const activeLots = await Lot.findAll({ include: [Bid] });
-        socket.emit('updateLots', activeLots);
+    try { 
+        socket.emit('updateLots', await Lot.findAll({ include: [Bid] })); 
     } catch (e) {
-        console.error("Ожидание инициализации базы...");
+        console.error('Ошибка отправки лотов при подключении:', e);
     }
 
     socket.on('setupAutoBroker', async (data) => {
-        const { lotId, maxAmount, userId } = data;
         try {
-            const user = await User.findByPk(userId);
-            if (!user) return;
-            if (user.isBlocked) return socket.emit('bidError', { message: 'Ваш аккаунт заблокирован администратором' });
+            const user = await User.findByPk(data.userId);
+            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Заблокирован' });
             
-            // Проверка тарифов (3000 / 5000)
             const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: `Необходим депозит ${requiredDeposit} ₽` });
-            if (user.depositBalance < 0) return socket.emit('bidError', { message: 'У вас отрицательный баланс. Пополните счет.' });
-            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Недостаточно средств для оплаты комиссии (49 ₽)' });
+            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: 'Пополните депозит' });
+            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
             
-            const lot = await Lot.findByPk(lotId);
-            if (lot.status === 'completed') return socket.emit('bidError', { message: 'Торги завершены!' });
-            if (maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Лимит слишком мал' });
+            const lot = await Lot.findByPk(data.lotId);
+            if (lot.status === 'completed' || data.maxAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка лимита' });
 
-            // Списываем 49 рублей за включение брокера
             user.depositBalance -= 49;
             if (user.depositBalance < requiredDeposit) user.isVerified = false;
             await user.save();
-            await recordTransaction(user.id, 'bid_fee', -49, `Активация автоброкера (Лот ${lot.lotNumber})`);
+            await recordTransaction(user.id, 'bid_fee', -49, `Включение автоброкера (Лот ${lot.lotNumber})`);
 
-            let autoBid = await AutoBid.findOne({ where: { LotId: lotId, UserId: userId } });
+            let autoBid = await AutoBid.findOne({ where: { LotId: data.lotId, UserId: data.userId } });
             if (autoBid) { 
-                autoBid.maxAmount = maxAmount; 
+                autoBid.maxAmount = data.maxAmount; 
                 await autoBid.save(); 
             } else { 
-                await AutoBid.create({ maxAmount, LotId: lotId, UserId: userId }); 
+                await AutoBid.create({ maxAmount: data.maxAmount, LotId: data.lotId, UserId: data.userId }); 
             }
 
-            socket.emit('bidSuccess', { message: `Робот включен (списано 49 ₽)! Лимит: ${maxAmount} ₽` });
-            await triggerAutoBids(lotId);
-        } catch (error) {
-            socket.emit('bidError', { message: 'Ошибка настройки автоброкера' });
+            socket.emit('bidSuccess', { message: `Робот включен (списано 49 ₽)` });
+            await triggerAutoBids(data.lotId);
+        } catch (error) { 
+            console.error('Ошибка сокета setupAutoBroker:', error);
+            socket.emit('bidError', { message: 'Ошибка сервера' }); 
         }
     });
 
     socket.on('cancelAutoBroker', async (data) => {
-        try {
-            await AutoBid.destroy({ where: { LotId: data.lotId, UserId: data.userId } });
-            socket.emit('bidSuccess', { message: 'Автоброкер отключен' });
+        try { 
+            await AutoBid.destroy({ where: { LotId: data.lotId, UserId: data.userId } }); 
+            socket.emit('bidSuccess', { message: 'Автоброкер отключен' }); 
         } catch (error) {
-            console.error(error);
+            console.error('Ошибка отмены автоброкера:', error);
         }
     });
 
     socket.on('placeBid', async (data) => {
-        const { lotId, bidAmount, userId } = data;
         try {
-            const user = await User.findByPk(userId);
-            if (!user) return;
-            if (user.isBlocked) return socket.emit('bidError', { message: 'Действие запрещено. Аккаунт заблокирован.' });
+            const user = await User.findByPk(data.userId);
+            if (!user || user.isBlocked) return socket.emit('bidError', { message: 'Заблокирован' });
             
-            // Проверка тарифов (3000 / 5000)
             const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: `Необходим депозит ${requiredDeposit} ₽` });
-            if (user.depositBalance < 0) return socket.emit('bidError', { message: 'У вас отрицательный баланс. Пополните счет.' });
-            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Недостаточно средств для оплаты комиссии за ставку (49 ₽)' });
+            if (!user.isVerified && user.depositBalance < requiredDeposit) return socket.emit('bidError', { message: 'Пополните депозит' });
+            if (user.depositBalance < 49) return socket.emit('bidError', { message: 'Нет 49 ₽ на ставку' });
 
-            const lot = await Lot.findByPk(lotId);
-            if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now()) return socket.emit('bidError', { message: 'Торги завершены!' });
+            const lot = await Lot.findByPk(data.lotId);
+            if (!lot || lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now() || data.bidAmount < lot.currentPrice + lot.minStep) return socket.emit('bidError', { message: 'Ошибка ставки' });
 
-            if (bidAmount >= lot.currentPrice + lot.minStep) {
-                
-                // Списываем 49 рублей за ручную ставку
-                user.depositBalance -= 49;
-                if (user.depositBalance < requiredDeposit) user.isVerified = false;
-                await user.save();
-                await recordTransaction(user.id, 'bid_fee', -49, `Комиссия за ручную ставку (Лот ${lot.lotNumber})`);
+            user.depositBalance -= 49;
+            if (user.depositBalance < requiredDeposit) user.isVerified = false;
+            await user.save();
+            await recordTransaction(user.id, 'bid_fee', -49, `Ручная ставка (Лот ${lot.lotNumber})`);
 
-                lot.currentPrice = bidAmount;
-                lot.bidsCount += 1;
-                const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
-                if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
-                
-                await lot.save();
-                await Bid.create({ amount: bidAmount, LotId: lot.id, UserId: user.id, userPhone: user.phone });
+            lot.currentPrice = data.bidAmount; 
+            lot.bidsCount += 1;
+            const timeRemaining = new Date(lot.endTime).getTime() - Date.now();
+            if (timeRemaining > 0 && timeRemaining < 180000) lot.endTime = new Date(Date.now() + 180000); 
+            await lot.save();
+            await Bid.create({ amount: data.bidAmount, LotId: lot.id, UserId: user.id, userPhone: user.phone });
 
-                const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
-                const prevLeaderId = latestBid ? latestBid.UserId : null;
+            const latestBid = await Bid.findOne({ where: { LotId: lot.id }, order: [['createdAt', 'DESC']] });
+            const prevLeaderId = latestBid ? latestBid.UserId : null;
 
-                const updatedLots = await Lot.findAll({ include: [Bid] });
-                io.emit('updateLots', updatedLots);
-                socket.emit('bidSuccess', { message: 'Ставка принята (списано 49 ₽)' });
+            io.emit('updateLots', await Lot.findAll({ include: [Bid] }));
+            socket.emit('bidSuccess', { message: 'Ставка принята (списано 49 ₽)' });
 
-                if (prevLeaderId && prevLeaderId !== user.id) {
-                    io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: bidAmount });
-                }
-                await triggerAutoBids(lot.id);
-            } else {
-                socket.emit('bidError', { message: `Ставка слишком мала!` });
+            if (prevLeaderId && prevLeaderId !== user.id) {
+                io.emit('outbid', { previousUserId: prevLeaderId, lotId: lot.id, title: lot.title, newPrice: data.bidAmount });
+                // СМС при перебитой ставке
+                const prevUser = await User.findByPk(prevLeaderId);
+                if (prevUser) sendSms(prevUser.phone, `ТОРГИ: Ваша ставка на лот ${lot.lotNumber} перебита. Новая цена: ${data.bidAmount} руб.`);
             }
-        } catch (error) {
-            socket.emit('bidError', { message: 'Ошибка сервера' });
-        }
-    });
-
-    socket.on('disconnect', () => {
-        console.log(`❌ Отключился: ${socket.id}`);
-    });
-});
-
-// === 6. РАЗДАЧА ФРОНТЕНДА ===
-const frontendPath = path.join(__dirname, '../frontend/build');
-app.use(express.static(frontendPath));
-
-app.get(/^(?!\/(api|uploads)).*/, (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
-        if (err) {
-            console.error('❌ Ошибка отправки index.html:', err);
-            res.status(500).send('Ошибка загрузки фронтенда. Проверьте папку build.');
+            await triggerAutoBids(lot.id);
+        } catch (error) { 
+            console.error('Ошибка сокета placeBid:', error);
+            socket.emit('bidError', { message: 'Ошибка сервера' }); 
         }
     });
 });
 
-// === 7. ЗАПУСК БАЗЫ ДАННЫХ И СЕРВЕРА ===
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+app.get(/^(?!\/(api|uploads)).*/, (req, res) => { 
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html')); 
+});
+
 async function startServer() {
     try {
-        // alter: true бережно сохранит старые данные и добавит новые колонки/таблицы
         await sequelize.sync({ alter: true }); 
-        console.log('✅ База данных готова (Синхронизация завершена)');
-
-        const PORT = process.env.PORT || 5000; // Поставил 5000 порт по умолчанию (под Nginx)
+        const PORT = process.env.PORT || 5000;
         server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Сервер РОЙ ТОРГ запущен на порту ${PORT}`);
             
-            // CRON-УВЕДОМЛЕНИЯ ОБ ОКОНЧАНИИ ТОРГОВ
             setInterval(async () => {
                 try {
-                    const expiredLots = await Lot.findAll({
-                        where: { status: 'active', endTime: { [Op.lt]: new Date() } },
-                        include: [Bid]
+                    const expiredLots = await Lot.findAll({ 
+                        where: { status: 'active', endTime: { [Op.lt]: new Date() } }, 
+                        include: [Bid] 
                     });
-
+                    
                     for (let lot of expiredLots) {
-                        lot.status = 'completed';
+                        lot.status = 'completed'; 
                         await lot.save();
                         
-                        const topBids = await Bid.findAll({ where: { LotId: lot.id }, order: [['amount', 'DESC']], limit: 3 });
+                        const topBids = await Bid.findAll({ 
+                            where: { LotId: lot.id }, 
+                            order: [['amount', 'DESC']], 
+                            limit: 3 
+                        });
                         
                         if (topBids.length > 0) {
                             const winningAmount = topBids[0].amount;
                             const isReserveMet = !lot.reservePrice || winningAmount >= lot.reservePrice;
-                            const computedCommission = Math.round(winningAmount * 0.03);
                             
-                            // Записываем системный лог о завершении
-                            await logAdminAction(null, 'SYSTEM_AUCTION_END', `Лот ${lot.lotNumber} завершен. Победитель: ${topBids[0].userPhone}`);
-
+                            // Сохраняем победителя в БД
+                            lot.winnerId = topBids[0].UserId;
+                            lot.winnerPhone = topBids[0].userPhone;
+                            await lot.save();
+                            
+                            // Отправляем СМС Победителю
+                            sendSms(topBids[0].userPhone, `Победа! Вы выиграли аукцион на лот ${lot.lotNumber}. Перейдите в ЛК для оплаты осмотра и завершения сделки.`);
+                            
                             io.emit('winnerNotification', { 
                                 lotId: lot.id, 
-                                title: lot.title,
-                                winnerPhone: topBids[0].userPhone,
-                                winnerUserId: topBids[0].UserId,
-                                managerPhone: '+7 (921) 123-45-67',
-                                reserveMet: isReserveMet,          
-                                commissionAmount: computedCommission 
+                                title: lot.title, 
+                                winnerPhone: topBids[0].userPhone, 
+                                winnerUserId: topBids[0].UserId, 
+                                managerPhone: '+7 (921) 123-45-67', 
+                                reserveMet: isReserveMet, 
+                                commissionAmount: Math.round(winningAmount * 0.03) 
                             });
                         }
                     }
-
                     if (expiredLots.length > 0) {
-                        const updatedLots = await Lot.findAll({ include: [Bid] });
-                        io.emit('updateLots', updatedLots);
+                        io.emit('updateLots', await Lot.findAll({ include: [Bid] }));
                     }
                 } catch (err) {
-                    console.error("Ошибка в cron-задаче:", err);
+                    console.error('Ошибка в цикле проверки торгов (CRON):', err);
                 }
             }, 10000); 
         });
-
     } catch (error) {
-        console.error('Критическая ошибка при запуске бэкенда:', error);
+        console.error('Критическая ошибка запуска:', error);
     }
 }
 
