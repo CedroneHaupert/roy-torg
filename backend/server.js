@@ -287,21 +287,29 @@ app.post('/api/auth/verify', async (req, res) => {
 // ==========================================
 // 💳 ИНТЕГРАЦИЯ ЮKASSA
 // ==========================================
-app.post('/api/payment/create', async (req, res) => {
+app.post('/api/payments/youkassa/create', async (req, res) => {
     try {
-        const { userId, amount, userType, returnUrl, paymentType, lotId } = req.body;
+        console.log('🚀 [ЮKASSA] Пришел запрос на создание платежа!', req.body);
+        
+        const { userId, amount, userType, returnUrl, paymentType, lotId, description } = req.body;
         const user = await User.findByPk(userId);
         if (!user || user.isBlocked) return res.status(403).json({ error: 'Доступ запрещен' });
 
         const shopId = process.env.YOOKASSA_SHOP_ID;
         const secretKey = process.env.YOOKASSA_SECRET_KEY;
-        if (!shopId || !secretKey) return res.status(500).json({ error: 'ЮKassa не настроена' });
+        if (!shopId || !secretKey) {
+            console.error('❌ Ошибка: Ключи ЮKassa не найдены в .env файле!');
+            return res.status(500).json({ error: 'ЮKassa не настроена' });
+        }
 
         const authHeader = 'Basic ' + Buffer.from(`${shopId}:${secretKey}`).toString('base64');
         const idempotenceKey = Date.now().toString() + userId + Math.random();
         
-        let description = `Внесение гарантийного депозита РОЙ ТОРГ (${user.phone})`;
-        if (paymentType === 'inspection') description = `Оплата осмотра техники (Лот ${lotId}) - ${user.phone}`;
+        // Поддерживаем кастомное описание или старое
+        let finalDescription = description || `Внесение гарантийного депозита РОЙ ТОРГ (${user.phone})`;
+        if (paymentType === 'inspection') finalDescription = `Оплата осмотра техники (Лот ${lotId}) - ${user.phone}`;
+
+        console.log(`💸 Стучимся в API ЮKassa на сумму ${amount} руб...`);
 
         const yooResponse = await fetch('https://api.yookassa.ru/v3/payments', {
             method: 'POST',
@@ -315,27 +323,31 @@ app.post('/api/payment/create', async (req, res) => {
                 capture: true, 
                 confirmation: { 
                     type: 'redirect', 
-                    return_url: returnUrl || 'https://roy-torg.ru' 
+                    return_url: returnUrl || 'https://roy-torg.ru/#profile' 
                 },
-                description: description,
-                metadata: { userId: user.id, userType: userType, paymentType: paymentType || 'deposit', lotId: lotId || null }
+                description: finalDescription,
+                metadata: { userId: user.id, userType: userType || user.userType, paymentType: paymentType || 'deposit', lotId: lotId || null }
             })
         });
 
         const paymentData = await yooResponse.json();
+        
         if (paymentData.confirmation && paymentData.confirmation.confirmation_url) {
-            res.json({ success: true, url: paymentData.confirmation.confirmation_url });
+            console.log('✅ Ссылка успешно получена!');
+            // Отдаем confirmationUrl ровно так, как ждет фронтенд
+            res.json({ success: true, confirmationUrl: paymentData.confirmation.confirmation_url });
         } else {
-            console.error('Ошибка от ЮKassa:', paymentData);
+            console.error('❌ Ошибка от ЮKassa:', paymentData);
             res.status(500).json({ error: 'Ошибка платежного шлюза' });
         }
     } catch (error) { 
-        console.error('Ошибка создания платежа:', error);
+        console.error('❌ Сбой сети при запросе к ЮKassa:', error);
         res.status(500).json({ error: 'Ошибка сервера' }); 
     }
 });
 
-app.post('/api/payment/webhook', async (req, res) => {
+// Обновил URL вебхука, чтобы он совпадал с тем, что я просил вписать в личном кабинете ЮKassa
+app.post('/api/payments/youkassa/webhook', async (req, res) => {
     try {
         const event = req.body;
         if (event.event === 'payment.succeeded') {
@@ -345,6 +357,8 @@ app.post('/api/payment/webhook', async (req, res) => {
             const paymentType = payment.metadata.paymentType;
             const lotId = payment.metadata.lotId;
             const amount = Number(payment.amount.value);
+
+            console.log(`🤑 [ЮKASSA] Успешная оплата! Пользователь ID: ${userId}, Сумма: ${amount}`);
 
             const user = await User.findByPk(userId);
             if (user) {
