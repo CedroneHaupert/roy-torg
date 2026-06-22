@@ -5,6 +5,7 @@ import {
   Gavel, Trophy, AlertTriangle 
 } from 'lucide-react';
 import { maskInn } from '../utils/helpers';
+import { ShieldCheck } from 'lucide-react';
 
 const ProfilePage = ({ currentUser, setCurrentUser, navigate, addToast, lots }) => {
   const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);

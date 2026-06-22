@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Search } from 'lucide-react';
 import { 
   ChevronRight, Archive, TrendingUp, Wallet, Image as ImageIcon, PlayCircle, Star, 
   History, Lock, UserCircle, Trophy, AlertTriangle, CheckCircle2, CreditCard, Gavel, 

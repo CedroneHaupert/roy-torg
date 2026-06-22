@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Gavel, Truck, Users, Package, Tractor, CarFront, ArrowRight } from 'lucide-react';
 import { LotCard, UpcomingLotRow } from '../components/LotCard';
+import { CheckCircle2, Bot } from 'lucide-react';
 
 const HomePage = ({ navigate, lots }) => {
   const [stats, setStats] = useState({ users: 115, auctions: 27, sold: 15 });
