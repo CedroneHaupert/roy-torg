@@ -12,7 +12,7 @@ const CatalogPage = ({ navigate, lots }) => {
       const end = new Date(l.endTime).getTime();
       const start = l.startTime ? new Date(l.startTime).getTime() : 0;
       
-      const isActive = l.status !== 'completed' && end > now && start <= now;
+      const isActive = l.status !== 'active' && end > now && start <= now;
       if (!isActive) return false;
 
       if (searchQuery && !l.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;

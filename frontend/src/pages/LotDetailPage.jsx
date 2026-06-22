@@ -30,7 +30,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
 
   if (!lot) return <div className="p-8 text-center">Лот не найден</div>;
 
-  const isArchived = lot.status === 'completed' || new Date(lot.endTime).getTime() <= Date.now();
+  const isArchived = lot.status === 'completed' || lot.status === 'cancelled' || new Date(lot.endTime).getTime() <= Date.now();
   const reserveMet = lot.reservePrice && lot.currentPrice >= lot.reservePrice;
 
   const safeBids = lot.Bids && lot.Bids.length > 0 ? lot.Bids.map(b => ({
@@ -117,11 +117,13 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
       </button>
 
       {isArchived && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+          <div className={`border px-4 py-3 rounded-xl mb-6 flex items-center gap-3 ${lot.status === 'cancelled' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
               <Archive size={24} className="shrink-0"/> 
               <div>
-                  <b className="block md:inline">Торги по данному лоту завершены.</b> 
-                  {winner ? ` Победитель: ${winner.userPhone} (Сумма: ${winner.amount.toLocaleString('ru-RU')} ₽)` : ' Ставок не было.'}
+                  <b className="block md:inline">
+                      {lot.status === 'cancelled' ? 'Торги по данному лоту ОТМЕНЕНЫ администратором.' : 'Торги по данному лоту завершены.'}
+                  </b> 
+                  {lot.status !== 'cancelled' && (winner ? ` Победитель: ${winner.userPhone} (Сумма: ${winner.amount.toLocaleString('ru-RU')} ₽)` : ' Ставок не было.')}
               </div>
           </div>
       )}

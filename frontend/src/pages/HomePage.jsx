@@ -25,7 +25,7 @@ const HomePage = ({ navigate, lots }) => {
       const now = Date.now();
       const end = new Date(l.endTime).getTime();
       const start = l.startTime ? new Date(l.startTime).getTime() : 0;
-      return l.status !== 'completed' && end > now && start <= now;
+      return l.status !== 'active' && end > now && start <= now;
   });
 
   const scheduledLots = lots.filter(l => {
