@@ -369,14 +369,16 @@ export default function App() {
       {currentPage === 'rules' && <RulesPage />}
       {currentPage === 'inspection' && <InspectionPage />}
       
-      {/* Показываем кнопку админки только если юзер авторизован И у него есть права */}
-      {currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
-            <button 
-                onClick={() => navigate('admin')} 
-                className="font-bold text-slate-700 hover:text-blue-600 transition"
-            >
-                Панель управления
-            </button>
+      {/* Защита Админ-панели на уровне роутера */}
+      {currentPage === 'admin' && (
+          isAppAdmin 
+          ? <AdminPage navigate={navigate} lots={lots} addToast={addToast} currentUser={currentUser} />
+          : <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
+              <ShieldBan size={64} className="text-red-500 mb-4" />
+              <h2 className="text-2xl font-black text-slate-800">Доступ закрыт</h2>
+              <p className="text-slate-500 mt-2">У вас нет прав администратора для просмотра этой страницы.</p>
+              <button onClick={() => navigate('home')} className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">На главную</button>
+            </div>
       )}
 
       {currentPage === 'profile' && <ProfilePage navigate={navigate} currentUser={currentUser} setCurrentUser={setCurrentUser} addToast={addToast} lots={lots} />}
