@@ -230,7 +230,7 @@ export default function App() {
   
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('roy_currentUser');
+      const saved = localStorage.getItem('roy_session_v2');
       return saved ? JSON.parse(saved) : null;
     } catch (e) {
       return null;
@@ -269,9 +269,9 @@ export default function App() {
   // Синхронизация пользователя с localStorage
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('roy_currentUser', JSON.stringify(currentUser));
+      localStorage.setItem('roy_session_v2', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('roy_currentUser');
+      localStorage.removeItem('roy_session_v2');
     }
   }, [currentUser]);
   
