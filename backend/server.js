@@ -739,7 +739,6 @@ async function triggerAutoBids(lotId) {
 
             user.depositBalance -= 49;
             const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
-            if (user.depositBalance < requiredDeposit) user.isVerified = false;
             await user.save();
             
             await recordTransaction(user.id, 'bid_fee', -49, `Комиссия автоброкера (Лот ${lot.lotNumber})`);
@@ -789,7 +788,6 @@ io.on('connection', async (socket) => {
             if (userMax < requiredBid) return socket.emit('bidError', { message: `Лимит меньше минимальной ставки: ${requiredBid.toLocaleString('ru-RU')} ₽` });
 
             user.depositBalance -= 49;
-            if (user.depositBalance < requiredDeposit) user.isVerified = false;
             await user.save();
             await recordTransaction(user.id, 'bid_fee', -49, `Включение автоброкера (Лот ${lot.lotNumber})`);
 
@@ -844,7 +842,6 @@ io.on('connection', async (socket) => {
             }
 
             user.depositBalance -= 49;
-            if (user.depositBalance < requiredDeposit) user.isVerified = false;
             await user.save();
             await recordTransaction(user.id, 'bid_fee', -49, `Ручная ставка (Лот ${lot.lotNumber})`);
 

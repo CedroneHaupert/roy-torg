@@ -15,7 +15,7 @@ import LotDetailPage from './pages/LotDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import SellPage from './pages/SellPage';
 
-// Информационные страницы (предполагается, что они все экспортируются из одного файла)
+// Информационные страницы 
 import { 
   PrivacyPage, 
   OfferPage, 
@@ -24,7 +24,7 @@ import {
   AboutPage 
 } from './pages/InfoPages';
 
-// Подключаемся к бэкенду. Экспортируем для использования в LotDetailPage и др.
+// Подключаемся к бэкенду. Экспортируем для использования в других файлах
 export const socket = io('');
 
 // === МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ===
@@ -241,15 +241,28 @@ export default function App() {
   const [winnerData, setWinnerData] = useState(null);
   const [toasts, setToasts] = useState([]);
 
-  // Обработка навигации по хэшу
+  // === УМНАЯ НАВИГАЦИЯ ПО ХЭШУ (ДЛЯ УНИКАЛЬНЫХ ССЫЛОК) ===
   useEffect(() => {
     const handleHashChange = () => {
-        if (window.location.hash === '#admin-panel') {
+        const hash = window.location.hash.replace('#', '');
+        
+        if (!hash || hash === 'home') {
+            setCurrentPage('home');
+            setCurrentLotId(null);
+        } else if (hash.startsWith('lot-')) {
+            setCurrentPage('lot');
+            setCurrentLotId(parseInt(hash.replace('lot-', ''), 10));
+        } else if (hash === 'admin-panel') {
             setCurrentPage('admin');
+        } else {
+            setCurrentPage(hash);
+            setCurrentLotId(null);
         }
     };
+
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange(); 
+    
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
@@ -305,10 +318,17 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Маршрутизация
+  // === ЕДИНСТВЕННАЯ И ПРАВИЛЬНАЯ ФУНКЦИЯ НАВИГАЦИИ ===
   const navigate = (page, params = null) => {
-    setCurrentPage(page);
-    if (page === 'lot') setCurrentLotId(params);
+    if (page === 'lot') {
+        window.location.hash = `#lot-${params}`;
+    } else if (page === 'home') {
+        window.location.hash = ''; 
+    } else if (page === 'admin') {
+        window.location.hash = '#admin-panel';
+    } else {
+        window.location.hash = `#${page}`;
+    }
     window.scrollTo(0, 0);
   };
 
