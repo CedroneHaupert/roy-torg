@@ -50,6 +50,9 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
     const archivedLots = lots.filter(l => l.status === 'completed' || l.status === 'cancelled' || new Date(l.endTime).getTime() <= now);
 
     useEffect(() => {
+        // 🛡️ БЛОКИРУЕМ ЗАПРОСЫ К БЭКЕНДУ ОТ ОБЫЧНЫХ ЮЗЕРОВ
+        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) return;
+
         if (activeTab === 'dashboard') {
             fetch('/api/admin/stats')
                 .then(res => res.json())
@@ -394,6 +397,20 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
         }
         return unique;
      };
+
+    // === 🛡️ ЖЕСТКАЯ ЗАЩИТА АДМИНКИ (ВЫШИБАЛА) ===
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+        return (
+            <main className="flex-1 w-full flex flex-col items-center justify-center py-20 px-4 text-center">
+                <ShieldBan size={80} className="text-red-500 mb-6 mx-auto" />
+                <h1 className="text-4xl font-black text-slate-800 mb-4">ДОСТУП ЗАКРЫТ</h1>
+                <p className="text-slate-600 mb-8 max-w-md mx-auto">Эта панель предназначена исключительно для сотрудников платформы РОЙ ТОРГ. У вашего аккаунта нет прав администратора.</p>
+                <button onClick={() => navigate('catalog')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg transition">
+                    Вернуться к торгам
+                </button>
+            </main>
+        );
+    }
 
     return (
         <main className="max-w-6xl mx-auto px-4 py-12 flex-1 w-full">
