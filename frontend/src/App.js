@@ -231,14 +231,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('roy_currentUser');
-      let parsedUser = saved ? JSON.parse(saved) : null;
-      
-      // Временное решение для разработки
-      if (parsedUser) {
-          parsedUser.role = 'superadmin';
-          parsedUser.isAdmin = true;
-      }
-      return parsedUser;
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
       return null;
     }
@@ -319,10 +312,8 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  // Обработка входа
+  // Обработка входа (БЕЗ ФЕЙКОВОГО АДМИНА)
   const handleLogin = (user) => {
-      user.role = 'superadmin';
-      user.isAdmin = true;
       setCurrentUser(user);
       setIsAuthModalOpen(false);
   };
