@@ -5,7 +5,7 @@ import {
   Info, Bot, MessageCircle, DownloadCloud, ShieldCheck, Search 
 } from 'lucide-react';
 
-// Подключаем единый сокет из App.js (удалили локальный io)
+// Подключаем единый сокет из App.js
 import { socket } from '../App';
 
 const maskInn = (inn) => {
@@ -32,7 +32,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   const reserveMet = lot.reservePrice && lot.currentPrice >= lot.reservePrice;
   const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
 
-  // ЛОГИКА АНОНИМНОСТИ СТАВОК (никто не видит чужие телефоны, кроме админов)
+  // ЛОГИКА АНОНИМНОСТИ СТАВОК
   const safeBids = lot.Bids && lot.Bids.length > 0 ? lot.Bids.map(b => {
       let displayName = 'Аноним';
       
@@ -58,50 +58,32 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
 
-  const handleBid = () => {
-    console.log("1. Клик по кнопке 'Сделать ставку'");
-    
-    if (isArchived) {
-        console.log("2. Ошибка: Лот в архиве");
-        return;
-    }
-    if (!currentUser) {
-        console.log("2. Ошибка: Нет пользователя, открываем окно входа");
-        openAuth();
-        return;
-    }
-    
-    console.log("3. Юзер:", currentUser.phone, "| Баланс:", currentUser.depositBalance);
+  // ВОТ ТА САМАЯ ПЕРЕМЕННАЯ ДЛЯ ФОТОГРАФИЙ
+  const displayImages = lot.images && lot.images.length > 0 
+    ? lot.images.map(img => `${img}`)
+    : [lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`];
 
-    // Защита от заблокированных
+  const handleBid = () => {
+    if (isArchived) return;
+    if (!currentUser) { openAuth(); return; }
+    
     if (currentUser.isBlocked) {
-        console.log("4. Ошибка: Пользователь заблокирован");
         addToast("Доступ запрещен", "Ваш аккаунт заблокирован администратором.", "error");
         return;
     }
     
-    // Проверка базового депозита (3000/5000) для не верифицированных
     const requiredDeposit = currentUser.userType === 'legal' ? 5000 : 3000;
     if (!currentUser.isVerified && currentUser.depositBalance < requiredDeposit) {
-        console.log("4. Ошибка: Недостаточно депозита");
         addToast("Доступ запрещен", `Для участия в торгах необходимо пополнить депозит на ${requiredDeposit.toLocaleString('ru-RU')} ₽.`, "error");
         navigate('profile');
         return;
     }
 
-    // НОВАЯ ПРОВЕРКА: Хватает ли денег на саму ставку (49 руб)
     if (currentUser.depositBalance < 49) {
-        console.log("4. Ошибка: Нет 49 рублей на оплату клика");
         addToast("Недостаточно средств", "На балансе должно быть минимум 49 ₽ для оплаты шага ставки.", "error");
         navigate('profile');
         return;
     }
-
-    console.log("5. Все проверки пройдены! Отправляем сокет на сервер:", {
-        lotId: lot.id,
-        bidAmount: bidAmount,
-        userId: currentUser.id
-    });
 
     socket.emit('placeBid', {
         lotId: lot.id,
@@ -268,7 +250,6 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                             </div>
                         </div>
 
-                        {/* БЛОК БЕЗОПАСНОСТИ ПРОДАВЦА */}
                         {lot.sellerInn && (
                             <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
