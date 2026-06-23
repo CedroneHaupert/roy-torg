@@ -30,15 +30,31 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
 
   const isArchived = lot.status === 'completed' || lot.status === 'cancelled' || new Date(lot.endTime).getTime() <= Date.now();
   const reserveMet = lot.reservePrice && lot.currentPrice >= lot.reservePrice;
+  const isAppAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.isAdmin === true);
 
-  const safeBids = lot.Bids && lot.Bids.length > 0 ? lot.Bids.map(b => ({
-      id: b.id, amount: b.amount, time: new Date(b.createdAt).toLocaleString('ru-RU', {timeStyle: "medium"}), 
-      userPhone: b.userPhone ? b.userPhone.replace(/(\d{3})\d{4}(\d{2})/, "$1***-**$2") : 'Аноним'
-  })).sort((a,b) => b.amount - a.amount) : [];
+  // ЛОГИКА АНОНИМНОСТИ СТАВОК (никто не видит чужие телефоны, кроме админов)
+  const safeBids = lot.Bids && lot.Bids.length > 0 ? lot.Bids.map(b => {
+      let displayName = 'Аноним';
+      
+      if (currentUser && b.UserId === currentUser.id) {
+          displayName = 'Вы (Ваша ставка)';
+      } else if (isAppAdmin) {
+          // Админы видят реальный телефон
+          displayName = b.userPhone || `Участник #${b.UserId}`;
+      } else {
+          // Конкуренты видят только ID
+          displayName = `Участник #${b.UserId || b.id}`;
+      }
 
-  const displayImages = lot.images && lot.images.length > 0 
-    ? lot.images.map(img => `${img}`)
-    : [lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`];
+      return {
+          id: b.id, 
+          amount: b.amount, 
+          time: new Date(b.createdAt).toLocaleString('ru-RU', {timeStyle: "medium"}), 
+          displayName: displayName,
+          UserId: b.UserId,
+          userPhone: b.userPhone
+      };
+  }).sort((a,b) => b.amount - a.amount) : [];
 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
 
@@ -158,7 +174,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                   <b className="block md:inline">
                       {lot.status === 'cancelled' ? 'Торги по данному лоту ОТМЕНЕНЫ администратором.' : 'Торги по данному лоту завершены.'}
                   </b> 
-                  {lot.status !== 'cancelled' && (winner ? ` Победитель: ${winner.userPhone} (Сумма: ${winner.amount.toLocaleString('ru-RU')} ₽)` : ' Ставок не было.')}
+                  {lot.status !== 'cancelled' && (winner ? ` Победитель: ${winner.displayName} (Сумма: ${winner.amount.toLocaleString('ru-RU')} ₽)` : ' Ставок не было.')}
               </div>
           </div>
       )}
@@ -337,7 +353,10 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                                          {safeBids.map((bid, idx) => (
                                              <tr key={bid.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                                                  <td className="py-4 px-4 text-sm text-slate-600">{bid.time}</td>
-                                                 <td className="py-4 px-4 text-sm font-medium text-slate-800">{bid.userPhone} {idx === 0 && <span className="ml-2 bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Лидер</span>}</td>
+                                                 <td className="py-4 px-4 text-sm font-medium text-slate-800">
+                                                     {bid.displayName}
+                                                     {idx === 0 && <span className="ml-2 bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Лидер</span>}
+                                                 </td>
                                                  <td className="py-4 px-4 text-right font-bold text-slate-900">{bid.amount.toLocaleString('ru-RU')}</td>
                                              </tr>
                                          ))}
@@ -379,8 +398,8 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
             )}
             {!lot.reservePrice && <div className="mb-6"></div>}
 
-            {/* БЛОК ОПЛАТЫ ДЛЯ ПОБЕДИТЕЛЯ (С НОВЫМИ КНОПКАМИ И ЛОГИКОЙ) */}
-            {isArchived && currentUser && winner && winner.userPhone === currentUser.phone && (
+            {/* БЛОК ОПЛАТЫ ДЛЯ ПОБЕДИТЕЛЯ */}
+            {isArchived && currentUser && winner && winner.UserId === currentUser.id && (
                 <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl mb-4 text-center">
                     <Trophy className="mx-auto text-yellow-500 mb-2" size={48} />
                     <h3 className="font-black text-blue-900 text-xl mb-1">Вы победили в торгах!</h3>
