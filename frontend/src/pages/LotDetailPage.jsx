@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ChevronRight, Archive, TrendingUp, Wallet, Image as ImageIcon, PlayCircle, Star, 
   History, Lock, UserCircle, Trophy, AlertTriangle, CheckCircle2, CreditCard, Gavel, 
-  Info, Bot, MessageCircle, DownloadCloud, ShieldCheck, Search 
+  Info, Bot, MessageCircle, DownloadCloud, ShieldCheck, Search, ExternalLink 
 } from 'lucide-react';
 
 // Подключаем единый сокет из App.js
@@ -58,7 +58,6 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
 
   const winner = isArchived && safeBids.length > 0 ? safeBids[0] : null;
 
-  // ВОТ ТА САМАЯ ПЕРЕМЕННАЯ ДЛЯ ФОТОГРАФИЙ
   const displayImages = lot.images && lot.images.length > 0 
     ? lot.images.map(img => `${img}`)
     : [lot.imageUrl || `https://placehold.co/800x500/0F172A/FFFFFF?text=Лот+${lot.lotNumber || lot.id}`];
@@ -161,7 +160,6 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           </div>
       )}
 
-      {/* Яркий блок рыночной оценки */}
       {!isArchived && lot.estimatedValue && (
         <div className="bg-gradient-to-r from-[#10B981] to-[#059669] text-white p-5 rounded-2xl shadow-lg mb-6 flex items-center justify-between">
             <div>
@@ -351,7 +349,7 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА */}
+        {/* ПРАВАЯ КОЛОНКА (Цены, кнопки, реклама) */}
         <div className="space-y-4 lg:sticky lg:top-24 h-max pb-8">
           
           <div className="bg-white p-6 rounded-2xl border-2 border-blue-600 shadow-xl">
@@ -401,9 +399,9 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
                                 <button onClick={handleCommissionPayment} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">
                                     Оплатить комиссию 3% ({Math.round(lot.currentPrice * 0.03).toLocaleString('ru-RU')} ₽)
                                 </button>
-                                <button onClick={() => navigate('finance')} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">
+                                <a href="https://движ-проект.рф" target="_blank" rel="noreferrer" className="block w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition text-sm shadow-md text-center">
                                     Запросить финансирование (ДВИЖ)
-                                </button>
+                                </a>
                             </div>
                         </>
                     ) : (
@@ -451,6 +449,34 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
               </div>
             )}
           </div>
+
+          {/* НОВЫЙ РЕКЛАМНЫЙ БЛОК ДВИЖ-ИНВЕСТ */}
+          {!isArchived && (
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden group">
+                {/* Фоновая водяная иконка для красоты */}
+                <div className="absolute -right-4 -top-4 text-white/5 group-hover:scale-110 transition-transform duration-700">
+                    <Wallet size={120} />
+                </div>
+                
+                <div className="relative z-10">
+                    <div className="inline-block bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded mb-3">
+                        Партнер платформы
+                    </div>
+                    <h4 className="font-black text-xl mb-2 leading-tight">Софинансирование до 100%</h4>
+                    <p className="text-sm text-slate-300 mb-5 leading-relaxed">
+                        Не хватает собственных средств? <b>ДВИЖ-ИНВЕСТ</b> может осуществить софинансирование сделки вплоть до 100% от выигранной стоимости лота.
+                    </p>
+                    <a 
+                        href="https://движ-проект.рф" 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+                    >
+                        Нажмите и зарегистрируйтесь <ExternalLink size={18}/>
+                    </a>
+                </div>
+            </div>
+          )}
 
           {!isArchived && (
               <div className={`border rounded-2xl p-6 shadow-sm transition-colors ${autoBrokerActive ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}>

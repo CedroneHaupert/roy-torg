@@ -211,15 +211,39 @@ const AdminPage = ({ navigate, lots, addToast, currentUser }) => {
 
     const handleEditLotClick = (lot) => {
         setEditLotId(lot.id);
+        
+        // Умный высчет: сколько дней/часов было заложено в этот лот
+        let currentDuration = 3;
+        let currentType = 'days';
+        
+        if (lot.endTime) {
+            const startMs = lot.startTime ? new Date(lot.startTime).getTime() : new Date(lot.createdAt).getTime();
+            const endMs = new Date(lot.endTime).getTime();
+            const diffHours = (endMs - startMs) / (1000 * 60 * 60);
+            
+            if (diffHours > 0) {
+                if (diffHours % 24 === 0 || diffHours >= 48) {
+                    currentDuration = Math.round(diffHours / 24);
+                    currentType = 'days';
+                } else {
+                    currentDuration = Math.round(diffHours);
+                    currentType = 'hours';
+                }
+            }
+        }
+
         setFormData({
             auctionId: lot.auctionId, lotNumber: lot.lotNumber, title: lot.title, 
             description: lot.description, year: lot.year || '', mileage: lot.mileage || '', 
             currentPrice: lot.currentPrice, minStep: lot.minStep, reservePrice: lot.reservePrice || '', 
             estimatedValue: lot.estimatedValue || '', hasNds: lot.hasNds, 
             startTime: lot.startTime ? new Date(lot.startTime).toISOString().slice(0, 16) : '', 
-            duration: 3, durationType: 'days', mechanicRating: lot.mechanicRating || '8', 
+            duration: currentDuration, // Подставляем реальное время
+            durationType: currentType, 
+            mechanicRating: lot.mechanicRating || '8', 
             videoUrl: lot.videoUrl || '', sellerInn: lot.sellerInn || '', isSecurityChecked: lot.isSecurityChecked
         });
+        
         setActiveTab('create');
         window.scrollTo(0, 0);
     };

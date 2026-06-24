@@ -498,19 +498,47 @@ app.post('/api/lots', async (req, res) => {
 
 app.put('/api/lots/:id', async (req, res) => {
     try {
-        const { adminId, ...updates } = req.body;
         const lot = await Lot.findByPk(req.params.id);
         if (!lot) return res.status(404).json({ error: 'Лот не найден' });
 
-        await lot.update(updates);
-        if (adminId) await logAdminAction(adminId, 'EDIT_LOT', `Отредактирован лот: ${lot.lotNumber}`);
-        
+        const updateData = { ...req.body };
+
+        // === ПЕРЕСЧЕТ ВРЕМЕНИ ПРИ РЕДАКТИРОВАНИИ ===
+        // Если прислали длительность (редактирование через форму)
+        if (updateData.duration && updateData.durationType) {
+            // Берем новую дату старта, либо старую, либо текущее время
+            const startMs = updateData.startTime 
+                ? new Date(updateData.startTime).getTime() 
+                : (lot.startTime ? new Date(lot.startTime).getTime() : Date.now());
+            
+            // Высчитываем миллисекунды (часы или дни)
+            const durationMs = updateData.durationType === 'hours' 
+                ? Number(updateData.duration) * 60 * 60 * 1000 
+                : Number(updateData.duration) * 24 * 60 * 60 * 1000;
+            
+            // Перезаписываем финальную дату окончания лота!
+            updateData.endTime = new Date(startMs + durationMs);
+        }
+
+        // Обновляем лот
+        await lot.update(updateData);
+
+        // Логирование действий админа (если нужно)
+        if (req.body.adminId) {
+            let actionText = `Отредактирован лот: ${lot.lotNumber}`;
+            if (req.body.status === 'completed') actionText = `Торги остановлены досрочно: ${lot.lotNumber}`;
+            if (req.body.status === 'cancelled') actionText = `Торги отменены: ${lot.lotNumber}`;
+            await logAdminAction(req.body.adminId, 'UPDATE_LOT', actionText).catch(console.error);
+        }
+
+        // Отправляем обновленные лоты всем подключенным юзерам
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
+
         res.json({ success: true, lot });
-    } catch (error) { 
+    } catch (error) {
         console.error('Ошибка редактирования лота:', error);
-        res.status(500).json({ error: 'Ошибка' }); 
+        res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
