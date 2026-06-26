@@ -214,7 +214,23 @@ app.post('/api/user/:id/documents', upload.fields([
     }
 });
 
-// НОВЫЙ ЭНДПОИНТ: Получение свежих данных юзера (чтобы баланс обновился после возврата с ЮKassa)
+// Добавлен роут для очистки/удаления документов пользователя админом
+app.delete('/api/admin/users/:id/documents', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        
+        user.passportPdf = '';
+        user.companyPdf = '';
+        await user.save();
+        
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error('Ошибка удаления документов:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
 app.get('/api/user/:id', async (req, res) => {
     try {
         const user = await User.findByPk(req.params.id);
@@ -230,6 +246,11 @@ app.post('/api/auth/send-code', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Номер телефона обязателен' });
 
+    // 🤖 БЭКДОР ДЛЯ БОТОВ: Пропускаем реальную отправку СМС
+    if (phone.startsWith('+7 (000)')) {
+        return res.json({ success: true, message: 'Бот-режим (2608)' });
+    }
+
     const cleanPhone = phone.replace(/\D/g, '');
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     smsCodes.set(phone, code); 
@@ -237,7 +258,7 @@ app.post('/api/auth/send-code', async (req, res) => {
 
     try {
         const SMS_RU_API_ID = process.env.SMS_RU_API_ID || ''; 
-        if (!SMS_RU_API_ID) return res.json({ success: true, message: 'Тестовый режим (введите 0000)' });
+        if (!SMS_RU_API_ID) return res.json({ success: true, message: 'Тестовый режим (введите 2608)' }); // Заменил 0000 на 2608
         
         const response = await fetch(`https://sms.ru/sms/send?api_id=${SMS_RU_API_ID}&to=${cleanPhone}&msg=${code}&json=1`);
         const data = await response.json();
@@ -246,11 +267,11 @@ app.post('/api/auth/send-code', async (req, res) => {
             res.json({ success: true, message: 'СМС отправлено' });
         } else {
             console.error('Ошибка шлюза:', data);
-            res.json({ success: true, message: 'Ошибка шлюза (0000)' });
+            res.json({ success: true, message: 'Ошибка шлюза (2608)' }); // Заменил 0000 на 2608
         }
     } catch (error) { 
         console.error('Сбой сети при СМС:', error);
-        res.json({ success: true, message: 'Локальный режим (0000)' }); 
+        res.json({ success: true, message: 'Локальный режим (2608)' }); // Заменил 0000 на 2608
     }
 });
 
@@ -258,8 +279,26 @@ app.post('/api/auth/verify', async (req, res) => {
     const { phone, code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Заполните поля' });
 
+    // 🤖 БЭКДОР ДЛЯ БОТОВ: Авто-вход по паролю 2608
+    if (phone.startsWith('+7 (000)') && code === '2608') {
+        let [user] = await User.findOrCreate({ 
+            where: { phone },
+            defaults: { depositBalance: 50000, isVerified: true, isBlocked: false, role: 'user', userType: 'individual' }
+        });
+        
+        // Если бот заходит повторно, восстанавливаем ему баланс до 50k
+        if (user.depositBalance < 49) {
+            user.depositBalance = 50000;
+            user.isVerified = true;
+            await user.save();
+        }
+        
+        return res.json({ success: true, message: 'Успешный вход (Бот)', user });
+    }
+
     const savedCode = smsCodes.get(phone);
-    if (savedCode !== code && code !== '0000') return res.status(400).json({ error: 'Неверный код' });
+    // Универсальный мастер-пароль 2608 теперь работает для всех пользователей
+    if (savedCode !== code && code !== '2608') return res.status(400).json({ error: 'Неверный код' });
 
     try {
         const [user, created] = await User.findOrCreate({
@@ -487,6 +526,18 @@ app.post('/api/lots', async (req, res) => {
 
         if (adminId) await logAdminAction(adminId, 'CREATE_LOT', `Создан лот: ${newLot.lotNumber}`);
         
+        // === 📱 МАССОВАЯ СМС-РАССЫЛКА О НОВОМ ЛОТЕ ===
+        const verifiedUsers = await User.findAll({ 
+            where: { isVerified: true, isBlocked: false } 
+        });
+
+        const smsMsg = `РОЙ ТОРГ: Новый лот ${newLot.lotNumber} (${newLot.title})! Старт: ${newLot.currentPrice} руб. Успейте сделать ставку!`;
+        
+        verifiedUsers.forEach(user => {
+            sendSms(user.phone, smsMsg);
+        });
+        // ==============================================
+        
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
         res.json({ success: true, lot: newLot });
@@ -504,41 +555,33 @@ app.put('/api/lots/:id', async (req, res) => {
         const updateData = { ...req.body };
 
         // === ПЕРЕСЧЕТ ВРЕМЕНИ ПРИ РЕДАКТИРОВАНИИ ===
-        // Если прислали длительность (редактирование через форму)
         if (updateData.duration && updateData.durationType) {
-            // Берем новую дату старта, либо старую, либо текущее время
             const startMs = updateData.startTime 
                 ? new Date(updateData.startTime).getTime() 
                 : (lot.startTime ? new Date(lot.startTime).getTime() : Date.now());
             
-            // Высчитываем миллисекунды (часы или дни)
             const durationMs = updateData.durationType === 'hours' 
                 ? Number(updateData.duration) * 60 * 60 * 1000 
                 : Number(updateData.duration) * 24 * 60 * 60 * 1000;
             
-            // Перезаписываем финальную дату окончания лота!
             updateData.endTime = new Date(startMs + durationMs);
         }
 
-        // Обновляем лот
         await lot.update(updateData);
 
-        // Логирование действий админа (если нужно)
         if (req.body.adminId) {
             let actionText = `Отредактирован лот: ${lot.lotNumber}`;
             if (req.body.status === 'completed') actionText = `Торги остановлены досрочно: ${lot.lotNumber}`;
             if (req.body.status === 'cancelled') actionText = `Торги отменены: ${lot.lotNumber}`;
             await logAdminAction(req.body.adminId, 'UPDATE_LOT', actionText).catch(console.error);
         }
-
-        // Отправляем обновленные лоты всем подключенным юзерам
+        
         const updatedLots = await Lot.findAll({ include: [Bid] });
         io.emit('updateLots', updatedLots);
-
         res.json({ success: true, lot });
-    } catch (error) {
+    } catch (error) { 
         console.error('Ошибка редактирования лота:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.status(500).json({ error: 'Ошибка' }); 
     }
 });
 
@@ -766,7 +809,6 @@ async function triggerAutoBids(lotId) {
             await lot.save();
 
             user.depositBalance -= 49;
-            const requiredDeposit = user.userType === 'legal' ? 5000 : 3000;
             await user.save();
             
             await recordTransaction(user.id, 'bid_fee', -49, `Комиссия автоброкера (Лот ${lot.lotNumber})`);
@@ -807,7 +849,6 @@ io.on('connection', async (socket) => {
             const lot = await Lot.findByPk(data.lotId);
             
             if (!lot) return socket.emit('bidError', { message: 'Лот не найден в базе' });
-            // Исправлено: !== 'active'
             if (lot.status !== 'active') return socket.emit('bidError', { message: `Торги недоступны (Статус: ${lot.status})` });
             
             const requiredBid = Number(lot.currentPrice) + Number(lot.minStep);
@@ -856,7 +897,6 @@ io.on('connection', async (socket) => {
             const lot = await Lot.findByPk(data.lotId);
             
             if (!lot) return socket.emit('bidError', { message: 'Лот не найден' });
-            // Исправлено: !== 'active'
             if (lot.status !== 'active') return socket.emit('bidError', { message: `Торги недоступны (Статус: ${lot.status})` });
             if (new Date(lot.endTime).getTime() <= Date.now()) return socket.emit('bidError', { message: 'Время торгов уже вышло' });
             
