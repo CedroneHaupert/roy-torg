@@ -119,12 +119,12 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
 
   const handleInspectionPayment = async () => {
       try {
-          const res = await fetch('/api/payment/create', {
+          const res = await fetch('/api/payments/youkassa/create', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: currentUser.id, amount: 12800, paymentType: 'inspection', lotId: lot.id, returnUrl: window.location.href })
           });
           const data = await res.json();
-          if (data.success && data.url) window.location.href = data.url;
+          if (data.success && data.confirmationUrl) window.location.href = data.confirmationUrl;
           else addToast("Ошибка", "Не удалось создать платеж", "error");
       } catch (e) { addToast("Ошибка", "Сбой сети", "error"); }
   };
@@ -132,12 +132,12 @@ const LotDetailPage = ({ navigate, lotId, lots, currentUser, openAuth, addToast 
   const handleCommissionPayment = async () => {
       try {
           const amount = Math.round(lot.currentPrice * 0.03);
-          const res = await fetch('/api/payment/create', {
+          const res = await fetch('/api/payments/youkassa/create', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: currentUser.id, amount: amount, paymentType: 'commission', lotId: lot.id, returnUrl: window.location.href })
           });
           const data = await res.json();
-          if (data.success && data.url) window.location.href = data.url;
+          if (data.success && data.confirmationUrl) window.location.href = data.confirmationUrl;
           else addToast("Ошибка", "Не удалось создать платеж", "error");
       } catch (e) { addToast("Ошибка", "Сбой сети", "error"); }
   };
